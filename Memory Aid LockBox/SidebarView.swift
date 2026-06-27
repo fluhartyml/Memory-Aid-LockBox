@@ -22,7 +22,7 @@ struct SidebarView: View {
                         Text(folder.name)
                             .font(.system(size: 18))
                         Spacer()
-                        Text("\(folder.items.count)")
+                        Text("\(folder.items.count + folder.mediaAssets.count)")
                             .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     }

@@ -27,9 +27,6 @@ struct ItemDetailView: View {
                     .font(.system(size: 24, weight: .bold))
                     .textFieldStyle(.plain)
 
-                // Scanned images / photos (right below title)
-                photosSection
-
                 // PIN display and copy
                 if !item.pin.isEmpty {
                     pinDisplaySection
@@ -40,6 +37,9 @@ struct ItemDetailView: View {
 
                 // Notes
                 notesSection
+
+                // Image shown large in the space below Notes
+                photosSection
             }
             .padding()
         }
@@ -201,11 +201,9 @@ struct ItemDetailView: View {
             }
 
             if !item.imageData.isEmpty {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 12) {
-                        ForEach(item.imageData.indices, id: \.self) { index in
-                            photoThumbnail(at: index)
-                        }
+                VStack(spacing: 12) {
+                    ForEach(item.imageData.indices, id: \.self) { index in
+                        photoThumbnail(at: index)
                     }
                 }
             }
@@ -218,8 +216,9 @@ struct ItemDetailView: View {
         if let uiImage = UIImage(data: item.imageData[index]) {
             Image(uiImage: uiImage)
                 .resizable()
-                .scaledToFill()
-                .frame(width: 150, height: 150)
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .onTapGesture {
                     viewingImage = item.imageData[index]
@@ -242,8 +241,9 @@ struct ItemDetailView: View {
         if let nsImage = NSImage(data: item.imageData[index]) {
             Image(nsImage: nsImage)
                 .resizable()
-                .scaledToFill()
-                .frame(width: 150, height: 150)
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .contextMenu {
                     Button(role: .destructive) {
