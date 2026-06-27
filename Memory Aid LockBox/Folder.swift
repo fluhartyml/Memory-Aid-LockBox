@@ -10,10 +10,11 @@ import SwiftData
 
 @Model
 final class Folder {
-    var name: String
-    var iconName: String
-    var dateCreated: Date
-    var sortOrder: Int
+    // Defaults are required so the model can mirror to CloudKit.
+    var name: String = ""
+    var iconName: String = "folder.fill"
+    var dateCreated: Date = Date()
+    var sortOrder: Int = 0
 
     @Relationship(deleteRule: .cascade, inverse: \VaultItem.folder)
     var items: [VaultItem] = []

@@ -16,21 +16,32 @@ struct Memory_Aid_LockBoxApp: App {
             VaultItem.self,
             MediaAsset.self,
         ])
-        // CloudKit sync is intentionally OFF for now. The "Host in CloudKit"
-        // capability is set on the target, but turning on SwiftData↔CloudKit
-        // mirroring also requires an iCloud container id AND making every model
-        // property optional / defaulted. That's a deliberate follow-up; until
-        // then `.none` keeps container creation deterministic (no launch crash).
-        let modelConfiguration = ModelConfiguration(
+        // Sync across the user's devices via CloudKit, using the container
+        // declared in the entitlement (iCloud.com.nightgard.Memory-Aid-LockBox).
+        // All @Model properties are defaulted/optional, as CloudKit requires.
+        let cloudConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
-            cloudKitDatabase: .none
+            cloudKitDatabase: .automatic
         )
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [cloudConfiguration])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // Fail-safe: if CloudKit mirroring can't start (no iCloud account,
+            // container not yet provisioned, offline first launch), fall back to
+            // a local-only store rather than crashing. Data is preserved on this
+            // device; it simply won't sync until CloudKit becomes available.
+            let localConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .none
+            )
+            do {
+                return try ModelContainer(for: schema, configurations: [localConfiguration])
+            } catch {
+                fatalError("Could not create ModelContainer: \(error)")
+            }
         }
     }()
 

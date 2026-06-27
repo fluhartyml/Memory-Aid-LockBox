@@ -10,11 +10,12 @@ import SwiftData
 
 @Model
 final class VaultItem {
-    var title: String
-    var notes: String
-    var pin: String
-    var dateCreated: Date
-    var dateModified: Date
+    // Defaults are required so the model can mirror to CloudKit.
+    var title: String = ""
+    var notes: String = ""
+    var pin: String = ""
+    var dateCreated: Date = Date()
+    var dateModified: Date = Date()
 
     @Attribute(.externalStorage)
     var imageData: [Data] = []
