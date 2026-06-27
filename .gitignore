@@ -1,0 +1,27 @@
+# Xcode / Swift — standard ignores
+
+## macOS
+.DS_Store
+
+## User-specific Xcode state (must never be shared)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+## Build output
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+## Swift Package Manager
+.build/
+.swiftpm/
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace

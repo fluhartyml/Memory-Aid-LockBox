@@ -12,9 +12,19 @@ import SwiftData
 struct Memory_Aid_LockBoxApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Folder.self,
+            VaultItem.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        // CloudKit sync is intentionally OFF for now. The "Host in CloudKit"
+        // capability is set on the target, but turning on SwiftData↔CloudKit
+        // mirroring also requires an iCloud container id AND making every model
+        // property optional / defaulted. That's a deliberate follow-up; until
+        // then `.none` keeps container creation deterministic (no launch crash).
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .none
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -25,8 +35,12 @@ struct Memory_Aid_LockBoxApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LockScreenView()
         }
         .modelContainer(sharedModelContainer)
+        #if os(macOS)
+        // Adds "File → Import from iPhone or iPad → Scan Documents / Take Photo".
+        .commands { ImportFromDevicesCommands() }
+        #endif
     }
 }
