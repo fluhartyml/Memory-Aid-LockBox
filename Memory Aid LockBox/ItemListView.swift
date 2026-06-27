@@ -131,13 +131,9 @@ struct ItemListView: View {
     }
 
     private func addTapped() {
-        if isCardFolder {
-            #if os(iOS)
-            showScanner = true
-            #else
-            showAddItem = true        // Mac: manual form; Continuity scan lives in the File menu
-            #endif
-        } else if isPhotoFolder {
+        // Cards now open the New Item sheet (with Scan/Camera/Library on it) on
+        // both platforms, instead of jumping straight into the scanner.
+        if isPhotoFolder {
             showPhotoPicker = true
         } else {
             showAddItem = true
