@@ -7,7 +7,9 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Memory Aid LockBox uses Face ID to protect your vault.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Memory Aid LockBox needs photo library access to attach images to vault items.</string>
+	<string>Memory Aid LockBox needs photo library access to attach images to vault items and to export your vault media back to Apple Photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Memory Aid LockBox needs full Photos access to move photos and videos into your vault and remove the originals from Apple Photos.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

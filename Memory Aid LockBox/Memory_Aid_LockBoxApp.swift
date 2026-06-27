@@ -14,6 +14,7 @@ struct Memory_Aid_LockBoxApp: App {
         let schema = Schema([
             Folder.self,
             VaultItem.self,
+            MediaAsset.self,
         ])
         // CloudKit sync is intentionally OFF for now. The "Host in CloudKit"
         // capability is set on the target, but turning on SwiftData↔CloudKit

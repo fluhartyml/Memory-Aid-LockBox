@@ -42,11 +42,15 @@ struct VaultTabView: View {
             }
         } content: {
             if let folder = selectedFolder {
-                ItemListView(
-                    folder: folder,
-                    selectedItem: $selectedItem,
-                    searchText: $searchText
-                )
+                if folder.name == "Photos" {
+                    MediaLibraryView(folder: folder)
+                } else {
+                    ItemListView(
+                        folder: folder,
+                        selectedItem: $selectedItem,
+                        searchText: $searchText
+                    )
+                }
             } else {
                 ContentUnavailableView(
                     "Select a Folder",

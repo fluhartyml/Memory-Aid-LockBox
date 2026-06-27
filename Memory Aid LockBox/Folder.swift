@@ -18,6 +18,9 @@ final class Folder {
     @Relationship(deleteRule: .cascade, inverse: \VaultItem.folder)
     var items: [VaultItem] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \MediaAsset.folder)
+    var mediaAssets: [MediaAsset] = []
+
     init(name: String, iconName: String = "folder.fill", sortOrder: Int = 0) {
         self.name = name
         self.iconName = iconName
