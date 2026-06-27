@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import Photos
 import PhotosUI
 #if canImport(UIKit)
 import UIKit
@@ -46,9 +47,13 @@ struct MediaLibraryView: View {
         content
             .navigationTitle(folder.name)
             .toolbar { toolbarContent }
+            // `photoLibrary: .shared()` is REQUIRED for itemIdentifier to be
+            // populated — without it the picker runs out-of-process, identifiers
+            // come back nil, and the "move" can't delete the originals.
             .photosPicker(isPresented: $showPicker,
                           selection: $pickerItems,
-                          matching: .any(of: [.images, .videos]))
+                          matching: .any(of: [.images, .videos]),
+                          photoLibrary: .shared())
             .onChange(of: pickerItems) { _, items in
                 guard !items.isEmpty else { return }
                 Task { await runImport(items) }
