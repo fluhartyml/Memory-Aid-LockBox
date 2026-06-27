@@ -26,12 +26,15 @@ struct Memory_Aid_LockBoxApp: App {
         )
 
         do {
-            return try ModelContainer(for: schema, configurations: [cloudConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [cloudConfiguration])
+            print("☁️ [LockBox] CloudKit ModelContainer initialized — sync is ON (container iCloud.com.nightgard.Memory-Aid-LockBox).")
+            return container
         } catch {
             // Fail-safe: if CloudKit mirroring can't start (no iCloud account,
             // container not yet provisioned, offline first launch), fall back to
             // a local-only store rather than crashing. Data is preserved on this
             // device; it simply won't sync until CloudKit becomes available.
+            print("⚠️ [LockBox] CloudKit container FAILED — running LOCAL-ONLY (no iCloud sync). Reason: \(error)")
             let localConfiguration = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false,
