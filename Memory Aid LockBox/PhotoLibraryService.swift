@@ -145,7 +145,13 @@ enum PhotoLibraryService {
         }
     }
 
-    struct ExportSummary { var success = 0; var failed = 0 }
+    struct ExportSummary {
+        /// The assets that actually made it into Apple Photos — only these are
+        /// safe to remove from the vault if the user chooses "move".
+        var succeeded: [MediaAsset] = []
+        var failed = 0
+        var successCount: Int { succeeded.count }
+    }
 
     /// Writes vault media back into Apple Photos (single or batch).
     static func exportToPhotos(_ assets: [MediaAsset]) async -> ExportSummary {
@@ -177,7 +183,7 @@ enum PhotoLibraryService {
                         request.addResource(with: .photo, data: data, options: nil)
                     }
                 }
-                summary.success += 1
+                summary.succeeded.append(asset)
             } catch {
                 summary.failed += 1
             }

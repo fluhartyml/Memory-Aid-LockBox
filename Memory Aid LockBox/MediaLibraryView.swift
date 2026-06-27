@@ -30,6 +30,12 @@ struct MediaLibraryView: View {
     @State private var viewerAsset: MediaAsset?
     @State private var showDeleteConfirm = false
 
+    // After a successful export, ask whether to keep the vault copies or move
+    // them out (delete from the vault). Only the verified-exported assets.
+    @State private var exportedPendingRemoval: [MediaAsset] = []
+    @State private var showExportMovePrompt = false
+    @State private var lastExportFailed = 0
+
     @State private var statusMessage: String?
     @State private var showStatus = false
 
@@ -65,6 +71,22 @@ struct MediaLibraryView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This deletes them from the lockbox only. It does not touch Apple Photos.")
+            }
+            .confirmationDialog("Exported \(exportedPendingRemoval.count) to Apple Photos. Remove them from the vault?",
+                                isPresented: $showExportMovePrompt, titleVisibility: .visible) {
+                Button("Remove from Vault", role: .destructive) {
+                    for asset in exportedPendingRemoval { modelContext.delete(asset) }
+                    exportedPendingRemoval = []
+                    lastExportFailed = 0
+                    endSelecting()
+                }
+                Button("Keep in Vault", role: .cancel) {
+                    exportedPendingRemoval = []
+                    lastExportFailed = 0
+                    endSelecting()
+                }
+            } message: {
+                Text(exportMovePromptMessage)
             }
             .alert("Memory Aid LockBox", isPresented: $showStatus) {
                 Button("OK", role: .cancel) {}
@@ -245,20 +267,36 @@ struct MediaLibraryView: View {
         let summary = await PhotoLibraryService.exportToPhotos(targets)
         isExporting = false
 
-        var message = "\(summary.success) item\(summary.success == 1 ? "" : "s") exported to Apple Photos."
-        if summary.failed > 0 { message += "\n\n\(summary.failed) failed." }
-        statusMessage = message
-        showStatus = true
-
-        if isSelecting { isSelecting = false; selection.removeAll() }
+        if summary.successCount > 0 {
+            // Offer keep-or-move for the items that actually exported.
+            exportedPendingRemoval = summary.succeeded
+            lastExportFailed = summary.failed
+            showExportMovePrompt = true
+        } else {
+            statusMessage = "Export failed for \(summary.failed) item\(summary.failed == 1 ? "" : "s")."
+            showStatus = true
+            endSelecting()
+        }
     }
 
     private func deleteSelected() {
         for asset in selectedAssets {
             modelContext.delete(asset)
         }
+        endSelecting()
+    }
+
+    private func endSelecting() {
         selection.removeAll()
         isSelecting = false
+    }
+
+    private var exportMovePromptMessage: String {
+        var text = "They're now in Apple Photos. \"Remove\" deletes the vault copy (a move); \"Keep\" leaves a copy here."
+        if lastExportFailed > 0 {
+            text += "\n\n\(lastExportFailed) item\(lastExportFailed == 1 ? "" : "s") couldn't be exported and stay in the vault."
+        }
+        return text
     }
 
     private func durationLabel(_ seconds: Double) -> String {
