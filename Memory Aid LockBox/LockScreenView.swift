@@ -12,6 +12,8 @@ struct LockScreenView: View {
     @State private var isUnlocked = false
     @State private var authError: String?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(VaultLock.self) private var vaultLock
+    @AppStorage("autoLockMinutes") private var autoLockMinutes = 5
 
     var body: some View {
         if isUnlocked {
@@ -66,39 +68,21 @@ struct LockScreenView: View {
     }
 
     private func authenticate() {
-        let context = LAContext()
-        var error: NSError?
-
-        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-            context.evaluatePolicy(
-                .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: "Unlock your vault"
-            ) { success, authenticationError in
-                if success {
-                    isUnlocked = true
-                    authError = nil
-                } else {
-                    authError = "Authentication failed"
-                }
-            }
-        } else {
-            // No biometrics — fall back to device passcode
-            if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
-                context.evaluatePolicy(
-                    .deviceOwnerAuthentication,
-                    localizedReason: "Unlock your vault"
-                ) { success, _ in
-                    if success {
-                        isUnlocked = true
-                        authError = nil
-                    } else {
-                        authError = "Authentication failed"
-                    }
-                }
+        Task {
+            let success = await BiometricAuthenticator.authenticate(reason: "Unlock your vault")
+            if success {
+                unlockApp()
             } else {
-                // No auth available (simulator) — unlock directly
-                isUnlocked = true
+                authError = "Authentication failed"
             }
         }
+    }
+
+    /// Unlocking the app also opens the vault and starts the auto-lock countdown,
+    /// so the user doesn't get challenged a second time just to open a folder.
+    private func unlockApp() {
+        isUnlocked = true
+        authError = nil
+        vaultLock.unlock(forMinutes: autoLockMinutes)
     }
 }

@@ -59,7 +59,8 @@ struct VaultTabView: View {
             }
         } content: {
             if let folder = selectedFolder {
-                if folder.requiresAuth && !vaultLock.isUnlocked {
+                // Lockbox: every folder is gated behind the vault lock.
+                if !vaultLock.isUnlocked {
                     LockedFolderView(folder: folder) {
                         vaultLock.unlock(forMinutes: autoLockMinutes)
                     }
@@ -106,9 +107,8 @@ struct VaultTabView: View {
         // the folder list so nothing sensitive stays on screen mid-view.
         .onChange(of: vaultLock.isUnlocked) { _, unlocked in
             if !unlocked {
-                if selectedFolder?.requiresAuth == true {
-                    selectedFolder = nil
-                }
+                // Whole vault re-locked — eject to the folder list.
+                selectedFolder = nil
                 selectedItem = nil
             }
         }

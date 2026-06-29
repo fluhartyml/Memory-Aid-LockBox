@@ -46,11 +46,6 @@ final class DefaultFolderSeeder {
                 seedDefaults(context)
             }
         }
-
-        // For installs that predate folder locking, make Photos protected by
-        // default — once. Runs after any import so it also catches a Photos
-        // folder that just synced down.
-        applyPhotosLockDefaultOnce(context)
     }
 
     /// True only when there are no folders, items, or media assets of any kind.
@@ -71,30 +66,10 @@ final class DefaultFolderSeeder {
             ("Notes", "note.text", 3),
         ]
         for (name, icon, order) in defaults {
-            let folder = Folder(name: name, iconName: icon, sortOrder: order)
-            // The Photos library shows thumbnails (content visible at a glance),
-            // so it's protected with Face ID by default.
-            if name == "Photos" { folder.requiresAuth = true }
-            context.insert(folder)
+            context.insert(Folder(name: name, iconName: icon, sortOrder: order))
         }
         try? context.save()
         print("🌱 [LockBox] Cloud was blank — seeded \(defaults.count) starter folders.")
-    }
-
-    /// Make the Photos folder require Face ID by default for installs created
-    /// before the locking feature existed. Guarded so it runs only once per
-    /// device and never re-forces a choice the user later changes.
-    private func applyPhotosLockDefaultOnce(_ context: ModelContext) {
-        let key = "photosLockDefaultApplied_v1"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-
-        let descriptor = FetchDescriptor<Folder>(predicate: #Predicate { $0.name == "Photos" })
-        let photosFolders = (try? context.fetch(descriptor)) ?? []
-        for folder in photosFolders where !folder.requiresAuth {
-            folder.requiresAuth = true
-        }
-        try? context.save()
-        UserDefaults.standard.set(true, forKey: key)
     }
 
     /// Resumes once NSPersistentCloudKitContainer finishes its first `.import`

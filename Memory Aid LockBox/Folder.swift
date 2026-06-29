@@ -16,8 +16,9 @@ final class Folder {
     var dateCreated: Date = Date()
     var sortOrder: Int = 0
 
-    /// When true, the folder's contents require a biometric (Face ID / Touch ID)
-    /// unlock to view. Defaulted so CloudKit mirroring stays happy.
+    /// Reserved for possible future per-folder locking. The current build is a
+    /// vault-wide lockbox (every folder is gated by VaultLock), so this isn't
+    /// read today. Kept (defaulted, CloudKit-safe) to avoid a schema change.
     var requiresAuth: Bool = false
 
     // CloudKit mirroring requires every relationship to be optional, so these
