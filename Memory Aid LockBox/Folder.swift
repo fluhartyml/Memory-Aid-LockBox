@@ -16,6 +16,10 @@ final class Folder {
     var dateCreated: Date = Date()
     var sortOrder: Int = 0
 
+    /// When true, the folder's contents require a biometric (Face ID / Touch ID)
+    /// unlock to view. Defaulted so CloudKit mirroring stays happy.
+    var requiresAuth: Bool = false
+
     // CloudKit mirroring requires every relationship to be optional, so these
     // to-many relationships are optional (nil is treated as an empty list).
     @Relationship(deleteRule: .cascade, inverse: \VaultItem.folder)

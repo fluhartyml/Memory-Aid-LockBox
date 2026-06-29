@@ -15,6 +15,10 @@ struct Memory_Aid_LockBoxApp: App {
     /// The seeder needs this to know whether to wait for an initial cloud import.
     let cloudKitAvailable: Bool
 
+    /// Shared lock state for folders that require Face ID. Starts locked, so
+    /// protected folders need their own unlock even after the app-entry lock.
+    @State private var vaultLock = VaultLock()
+
     init() {
         let schema = Schema([
             Folder.self,
@@ -57,6 +61,7 @@ struct Memory_Aid_LockBoxApp: App {
     var body: some Scene {
         WindowGroup {
             LockScreenView()
+                .environment(vaultLock)
                 .task {
                     // Decide whether to create starter folders based on iCloud's
                     // actual state (after import), not the momentarily-empty store.

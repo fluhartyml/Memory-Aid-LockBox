@@ -13,6 +13,7 @@ struct SidebarView: View {
     @Binding var selectedFolder: Folder?
     @Binding var showAddFolder: Bool
     @Environment(\.modelContext) private var modelContext
+    @Environment(VaultLock.self) private var vaultLock
 
     var body: some View {
         List(selection: $selectedFolder) {
@@ -22,6 +23,12 @@ struct SidebarView: View {
                         Text(folder.name)
                             .font(.system(size: 18))
                         Spacer()
+                        if folder.requiresAuth {
+                            Image(systemName: vaultLock.isUnlocked ? "lock.open.fill" : "lock.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(vaultLock.isUnlocked ? Color.secondary : Color.blue)
+                                .accessibilityLabel(vaultLock.isUnlocked ? "Unlocked" : "Locked")
+                        }
                         Text("\((folder.items?.count ?? 0) + (folder.mediaAssets?.count ?? 0))")
                             .font(.system(size: 16))
                             .foregroundStyle(.secondary)
@@ -32,6 +39,14 @@ struct SidebarView: View {
                 }
                 .tag(folder)
                 .draggable(folder.name)
+                .contextMenu {
+                    Button {
+                        folder.requiresAuth.toggle()
+                    } label: {
+                        Label(folder.requiresAuth ? "Don't Require Face ID" : "Require Face ID",
+                              systemImage: folder.requiresAuth ? "lock.open" : "lock")
+                    }
+                }
             }
             .onDelete(perform: deleteFolders)
         }
