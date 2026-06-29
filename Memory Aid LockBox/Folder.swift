@@ -16,11 +16,13 @@ final class Folder {
     var dateCreated: Date = Date()
     var sortOrder: Int = 0
 
+    // CloudKit mirroring requires every relationship to be optional, so these
+    // to-many relationships are optional (nil is treated as an empty list).
     @Relationship(deleteRule: .cascade, inverse: \VaultItem.folder)
-    var items: [VaultItem] = []
+    var items: [VaultItem]?
 
     @Relationship(deleteRule: .cascade, inverse: \MediaAsset.folder)
-    var mediaAssets: [MediaAsset] = []
+    var mediaAssets: [MediaAsset]?
 
     init(name: String, iconName: String = "folder.fill", sortOrder: Int = 0) {
         self.name = name

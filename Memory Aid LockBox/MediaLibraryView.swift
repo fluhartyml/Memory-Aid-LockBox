@@ -42,7 +42,7 @@ struct MediaLibraryView: View {
     private let columns = [GridItem(.adaptive(minimum: 100, maximum: 160), spacing: 4)]
 
     private var assets: [MediaAsset] {
-        folder.mediaAssets.sorted { $0.dateImported > $1.dateImported }
+        (folder.mediaAssets ?? []).sorted { $0.dateImported > $1.dateImported }
     }
 
     private var selectedAssets: [MediaAsset] {

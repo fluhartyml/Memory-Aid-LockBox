@@ -25,7 +25,7 @@ struct ItemListView: View {
     #endif
 
     var filteredItems: [VaultItem] {
-        let items = folder.items.sorted { $0.dateModified > $1.dateModified }
+        let items = (folder.items ?? []).sorted { $0.dateModified > $1.dateModified }
         if searchText.isEmpty {
             return items
         }
