@@ -111,7 +111,7 @@ struct MediaLibraryView: View {
                 Text("Move photos and videos in from Apple Photos. They'll live here in the vault.")
             } actions: {
                 Button { importTapped() } label: {
-                    Label("Import from Photos", systemImage: "square.and.arrow.down")
+                    Label("Add Photos", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -201,7 +201,7 @@ struct MediaLibraryView: View {
                 Button("Done") { isSelecting = false; selection.removeAll() }
             } else {
                 Button { importTapped() } label: {
-                    Label("Import", systemImage: "square.and.arrow.down")
+                    Label("Add Media", systemImage: "plus")
                 }
                 Button("Select") { isSelecting = true }
                     .disabled(assets.isEmpty)
