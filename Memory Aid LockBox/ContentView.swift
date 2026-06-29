@@ -76,7 +76,7 @@ struct VaultTabView: View {
             } else {
                 ContentUnavailableView(
                     "Select a Folder",
-                    systemImage: "folder",
+                    systemImage: "sidebar.leading",
                     description: Text("Choose a folder from the sidebar")
                 )
                 .font(.system(size: 18))
