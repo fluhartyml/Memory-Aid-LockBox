@@ -78,9 +78,9 @@ struct VaultTabView: View {
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
-        .onAppear {
-            seedDefaultFolders()
-        }
+        // Starter folders are seeded by DefaultFolderSeeder (called from the app
+        // entry point) once CloudKit's initial import has settled — not here,
+        // where the store is momentarily empty before the cloud import lands.
     }
 
     private var aboutButtonPlacement: ToolbarItemPlacement {
@@ -89,19 +89,5 @@ struct VaultTabView: View {
         #else
         .navigation
         #endif
-    }
-
-    private func seedDefaultFolders() {
-        guard folders.isEmpty else { return }
-        let defaults: [(String, String, Int)] = [
-            ("Cards", "creditcard.fill", 0),
-            ("Codes / Accounts", "lock.fill", 1),
-            ("Photos", "photo.fill", 2),
-            ("Notes", "note.text", 3),
-        ]
-        for (name, icon, order) in defaults {
-            let folder = Folder(name: name, iconName: icon, sortOrder: order)
-            modelContext.insert(folder)
-        }
     }
 }

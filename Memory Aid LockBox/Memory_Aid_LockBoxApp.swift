@@ -10,7 +10,12 @@ import SwiftData
 
 @main
 struct Memory_Aid_LockBoxApp: App {
-    var sharedModelContainer: ModelContainer = {
+    let sharedModelContainer: ModelContainer
+    /// Whether the store is mirroring to CloudKit (vs. the local-only fallback).
+    /// The seeder needs this to know whether to wait for an initial cloud import.
+    let cloudKitAvailable: Bool
+
+    init() {
         let schema = Schema([
             Folder.self,
             VaultItem.self,
@@ -26,9 +31,9 @@ struct Memory_Aid_LockBoxApp: App {
         )
 
         do {
-            let container = try ModelContainer(for: schema, configurations: [cloudConfiguration])
+            sharedModelContainer = try ModelContainer(for: schema, configurations: [cloudConfiguration])
+            cloudKitAvailable = true
             print("☁️ [LockBox] CloudKit ModelContainer initialized — sync is ON (container iCloud.com.nightgard.Memory-Aid-LockBox).")
-            return container
         } catch {
             // Fail-safe: if CloudKit mirroring can't start (no iCloud account,
             // container not yet provisioned, offline first launch), fall back to
@@ -41,16 +46,25 @@ struct Memory_Aid_LockBoxApp: App {
                 cloudKitDatabase: .none
             )
             do {
-                return try ModelContainer(for: schema, configurations: [localConfiguration])
+                sharedModelContainer = try ModelContainer(for: schema, configurations: [localConfiguration])
+                cloudKitAvailable = false
             } catch {
                 fatalError("Could not create ModelContainer: \(error)")
             }
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             LockScreenView()
+                .task {
+                    // Decide whether to create starter folders based on iCloud's
+                    // actual state (after import), not the momentarily-empty store.
+                    await DefaultFolderSeeder.shared.seedIfNeeded(
+                        container: sharedModelContainer,
+                        cloudKitAvailable: cloudKitAvailable
+                    )
+                }
         }
         .modelContainer(sharedModelContainer)
         #if os(macOS)
