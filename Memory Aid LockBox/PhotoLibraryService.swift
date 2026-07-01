@@ -90,21 +90,41 @@ struct MediaImporter {
     }
 
     private func makePhotoAsset(from item: PhotosPickerItem) async -> MediaAsset? {
-        guard let data = try? await item.loadTransferable(type: Data.self) else { return nil }
+        // Prefer the Photos framework with iCloud download enabled so a photo
+        // that isn't stored locally is fetched instead of being silently
+        // skipped. Fall back to the picker's own transfer if there's no
+        // identifier (only the in-process `.shared()` picker provides one).
+        var data: Data?
+        if let identifier = item.itemIdentifier {
+            data = await PhotoLibraryService.photoData(forLocalIdentifier: identifier)
+        }
+        if data == nil {
+            data = try? await item.loadTransferable(type: Data.self)
+        }
+        guard let data else { return nil }
         let thumb = MediaThumbnailer.photoThumbnail(from: data)
         return MediaAsset(type: .photo, data: data, thumbnailData: thumb, folder: folder)
     }
 
     private func makeVideoAsset(from item: PhotosPickerItem) async -> MediaAsset? {
-        guard let movie = try? await item.loadTransferable(type: PickedMovie.self) else { return nil }
-        defer { try? FileManager.default.removeItem(at: movie.url) }
-        guard let data = try? Data(contentsOf: movie.url) else { return nil }
-        let thumb = await MediaThumbnailer.videoThumbnail(fileURL: movie.url)
-        let duration = await MediaThumbnailer.videoDuration(fileURL: movie.url)
+        // Same as photos: force an iCloud download via the Photos framework so
+        // an un-downloaded video is retrieved rather than skipped.
+        var fileURL: URL?
+        if let identifier = item.itemIdentifier {
+            fileURL = await PhotoLibraryService.videoFileURL(forLocalIdentifier: identifier)
+        }
+        if fileURL == nil, let movie = try? await item.loadTransferable(type: PickedMovie.self) {
+            fileURL = movie.url
+        }
+        guard let url = fileURL else { return nil }
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let thumb = await MediaThumbnailer.videoThumbnail(fileURL: url)
+        let duration = await MediaThumbnailer.videoDuration(fileURL: url)
         return MediaAsset(type: .video,
                           data: data,
                           thumbnailData: thumb,
-                          originalFileName: movie.url.lastPathComponent,
+                          originalFileName: url.lastPathComponent,
                           durationSeconds: duration,
                           folder: folder)
     }
@@ -126,6 +146,49 @@ enum PhotoLibraryService {
 
     static func isAuthorized(_ status: PHAuthorizationStatus) -> Bool {
         status == .authorized || status == .limited
+    }
+
+    /// Full photo bytes for a Photos asset, forcing an iCloud download so a
+    /// photo that isn't stored locally is retrieved instead of failing to read.
+    static func photoData(forLocalIdentifier identifier: String) async -> Data? {
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
+        else { return nil }
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true   // download from iCloud if needed
+        options.deliveryMode = .highQualityFormat
+        options.version = .current
+        options.isSynchronous = false
+        return await withCheckedContinuation { continuation in
+            var resumed = false
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: data)
+            }
+        }
+    }
+
+    /// Writes a Photos video to a temporary file, forcing an iCloud download.
+    /// Returns the file URL (caller deletes it) or nil if it couldn't be read.
+    static func videoFileURL(forLocalIdentifier identifier: String) async -> URL? {
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
+        else { return nil }
+        let resources = PHAssetResource.assetResources(for: asset)
+        guard let resource = resources.first(where: { $0.type == .video })
+                ?? resources.first(where: { $0.type == .fullSizeVideo })
+                ?? resources.first
+        else { return nil }
+        let ext = UTType(resource.uniformTypeIdentifier)?.preferredFilenameExtension ?? "mov"
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(ext)
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true   // download from iCloud if needed
+        return await withCheckedContinuation { continuation in
+            PHAssetResourceManager.default().writeData(for: resource, toFile: dest, options: options) { error in
+                continuation.resume(returning: error == nil ? dest : nil)
+            }
+        }
     }
 
     /// Deletes the given originals from Apple Photos (the "move"). iOS presents
