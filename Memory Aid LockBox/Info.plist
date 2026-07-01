@@ -6,6 +6,8 @@
 	<string>Memory Aid LockBox uses the camera to scan cards and documents.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Memory Aid LockBox uses Face ID to protect your vault.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Memory Aid LockBox uses your location to add a map of where you are to a journal entry.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Memory Aid LockBox needs photo library access to attach images to vault items and to export your vault media back to Apple Photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

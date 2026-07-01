@@ -21,6 +21,8 @@ struct ItemDetailView: View {
     @State private var showCamera = false
     @State private var showScanner = false
     @State private var viewingImage: Data?
+    @State private var capturingLocation = false
+    @State private var showLocationError = false
 
     var body: some View {
         ScrollView {
@@ -113,8 +115,30 @@ struct ItemDetailView: View {
         .sheet(item: $viewingImage) { imageData in
             ImageViewerView(imageData: imageData)
         }
+        .alert("Couldn't add location", isPresented: $showLocationError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Location is off or unavailable. Enable it in Settings → Memory Aid LockBox → Location.")
+        }
         #endif
     }
+
+    #if os(iOS)
+    /// Capture the current location as a map image (GPS embedded) and add it to
+    /// the note's attachment list.
+    private func captureLocation() {
+        Task {
+            capturingLocation = true
+            if let data = await LocationMapCapture.captureCurrentLocationMap() {
+                item.imageData.append(data)
+                item.dateModified = Date()
+            } else {
+                showLocationError = true
+            }
+            capturingLocation = false
+        }
+    }
+    #endif
 
     // MARK: - PIN Display
 
@@ -221,6 +245,22 @@ struct ItemDetailView: View {
                             .font(.system(size: 14))
                     }
                 }
+
+                Button {
+                    captureLocation()
+                } label: {
+                    VStack(spacing: 4) {
+                        if capturingLocation {
+                            ProgressView().frame(height: 24)
+                        } else {
+                            Image(systemName: "location.circle")
+                                .font(.system(size: 24))
+                        }
+                        Text("Location")
+                            .font(.system(size: 14))
+                    }
+                }
+                .disabled(capturingLocation)
                 #endif
 
                 Spacer()
