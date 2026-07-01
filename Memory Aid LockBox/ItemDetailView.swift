@@ -22,6 +22,13 @@ struct ItemDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Header / hero image: the first attachment, shown as a banner
+                // across the top of the note. "Set as Header" on any other photo
+                // moves it here.
+                if let heroData = item.imageData.first {
+                    heroImage(heroData)
+                }
+
                 // Title
                 TextField("Title", text: $item.title)
                     .font(.system(size: 24, weight: .bold))
@@ -200,13 +207,62 @@ struct ItemDetailView: View {
                 Spacer()
             }
 
-            if !item.imageData.isEmpty {
+            // The first image is the header banner at the top, so list the
+            // remaining attachments here.
+            if item.imageData.count > 1 {
                 VStack(spacing: 12) {
-                    ForEach(item.imageData.indices, id: \.self) { index in
+                    ForEach(Array(item.imageData.indices.dropFirst()), id: \.self) { index in
                         photoThumbnail(at: index)
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Header / hero image
+
+    @ViewBuilder
+    private func heroImage(_ data: Data) -> some View {
+        #if canImport(UIKit)
+        if let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .onTapGesture { viewingImage = data }
+                .contextMenu { heroMenu(for: data) }
+        }
+        #else
+        if let nsImage = NSImage(data: data) {
+            Image(nsImage: nsImage)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .contextMenu { heroMenu(for: data) }
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private func heroMenu(for data: Data) -> some View {
+        #if os(iOS)
+        Button {
+            viewingImage = data
+        } label: {
+            Label("View Full Size", systemImage: "arrow.up.left.and.arrow.down.right")
+        }
+        #endif
+        Button(role: .destructive) {
+            if !item.imageData.isEmpty {
+                item.imageData.removeFirst()
+                item.dateModified = Date()
+            }
+        } label: {
+            Label("Remove Header Image", systemImage: "trash")
         }
     }
 
@@ -229,6 +285,11 @@ struct ItemDetailView: View {
                     } label: {
                         Label("View Full Size", systemImage: "arrow.up.left.and.arrow.down.right")
                     }
+                    Button {
+                        setAsHeader(index)
+                    } label: {
+                        Label("Set as Header", systemImage: "photo")
+                    }
                     Button(role: .destructive) {
                         item.imageData.remove(at: index)
                         item.dateModified = Date()
@@ -246,6 +307,11 @@ struct ItemDetailView: View {
                 .frame(maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .contextMenu {
+                    Button {
+                        setAsHeader(index)
+                    } label: {
+                        Label("Set as Header", systemImage: "photo")
+                    }
                     Button(role: .destructive) {
                         item.imageData.remove(at: index)
                         item.dateModified = Date()
@@ -255,6 +321,14 @@ struct ItemDetailView: View {
                 }
         }
         #endif
+    }
+
+    /// Move the attachment at `index` to the front so it becomes the header image.
+    private func setAsHeader(_ index: Int) {
+        guard item.imageData.indices.contains(index) else { return }
+        let img = item.imageData.remove(at: index)
+        item.imageData.insert(img, at: 0)
+        item.dateModified = Date()
     }
 
     private func copyPINToClipboard() {
