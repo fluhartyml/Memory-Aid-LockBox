@@ -41,27 +41,34 @@ struct VaultTabView: View {
                 showAddFolder: $showAddFolder
             )
             .toolbar {
+                // About + Settings live in a single menu so the narrow sidebar
+                // column doesn't overflow its toolbar into a ">>" chevron.
                 ToolbarItem(placement: aboutButtonPlacement) {
-                    Button {
-                        showAbout = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-                ToolbarItem(placement: aboutButtonPlacement) {
-                    Button {
-                        // Settings governs the vault's security, so opening it
-                        // requires its own Face ID challenge.
-                        Task {
-                            if await BiometricAuthenticator.authenticate(reason: "Open Settings") {
-                                showSettings = true
+                    Menu {
+                        Button {
+                            showAbout = true
+                        } label: {
+                            Label("About", systemImage: "info.circle")
+                        }
+                        Button {
+                            // Settings governs the vault's security, so opening it
+                            // requires its own Face ID challenge.
+                            Task {
+                                if await BiometricAuthenticator.authenticate(reason: "Open Settings") {
+                                    showSettings = true
+                                }
                             }
+                        } label: {
+                            Label("Settings", systemImage: "gearshape")
                         }
                     } label: {
-                        Image(systemName: "gearshape")
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
             }
+            // Give the folders column enough width that names like "Photos"/"Notes"
+            // don't truncate and its toolbar button doesn't spill into a ">>".
+            .navigationSplitViewColumnWidth(min: 240, ideal: 280)
         } detail: {
             NavigationStack {
                 folderContent
