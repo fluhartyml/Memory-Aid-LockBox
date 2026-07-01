@@ -64,6 +64,9 @@ final class DefaultFolderSeeder {
             ("Codes / Accounts", "lock.fill", 1),
             ("Photos", "photo.fill", 2),
             ("Notes", "note.text", 3),
+            // A journal is just a notes-style folder (item list), so it needs no
+            // special handling — only "Photos"/"Cards" are special-cased.
+            ("Journal", "book.closed.fill", 4),
         ]
         for (name, icon, order) in defaults {
             context.insert(Folder(name: name, iconName: icon, sortOrder: order))
