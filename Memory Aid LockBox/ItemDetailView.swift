@@ -29,7 +29,10 @@ struct ItemDetailView: View {
                 // across the top of the note. "Set as Header" on any other photo
                 // moves it here.
                 if let heroData = item.imageData.first {
-                    heroImage(heroData)
+                    HeaderImageBanner(imageData: heroData, bias: $item.headerVerticalBias) {
+                        item.dateModified = Date()
+                    }
+                    .contextMenu { heroMenu(for: heroData) }
                 }
 
                 // Title
@@ -238,32 +241,6 @@ struct ItemDetailView: View {
     // MARK: - Header / hero image
 
     @ViewBuilder
-    private func heroImage(_ data: Data) -> some View {
-        #if canImport(UIKit)
-        if let uiImage = UIImage(data: data) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 220)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .onTapGesture { viewingImage = data }
-                .contextMenu { heroMenu(for: data) }
-        }
-        #else
-        if let nsImage = NSImage(data: data) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 220)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .contextMenu { heroMenu(for: data) }
-        }
-        #endif
-    }
-
-    @ViewBuilder
     private func heroMenu(for data: Data) -> some View {
         #if os(iOS)
         Button {
@@ -280,6 +257,7 @@ struct ItemDetailView: View {
         Button(role: .destructive) {
             if !item.imageData.isEmpty {
                 item.imageData.removeFirst()
+                item.headerVerticalBias = 0.5   // next image (if any) starts centered
                 item.dateModified = Date()
             }
         } label: {
@@ -349,6 +327,7 @@ struct ItemDetailView: View {
         guard item.imageData.indices.contains(index) else { return }
         let img = item.imageData.remove(at: index)
         item.imageData.insert(img, at: 0)
+        item.headerVerticalBias = 0.5   // new header starts centered
         item.dateModified = Date()
     }
 
@@ -375,6 +354,7 @@ struct ItemDetailView: View {
             } else {
                 item.imageData[0] = data
             }
+            item.headerVerticalBias = 0.5   // new header starts centered
         } else {
             item.imageData.append(data)
         }
@@ -392,6 +372,72 @@ struct ItemDetailView: View {
         #elseif os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(item.pin, forType: .string)
+        #endif
+    }
+}
+
+/// The note's header/hero image. When the photo is taller than the fixed banner,
+/// it can be dragged vertically to choose which part shows (handy for a portrait
+/// shot that lands off-center). The chosen position is saved via `bias`:
+/// 0 = show the top, 0.5 = centered, 1 = show the bottom.
+private struct HeaderImageBanner: View {
+    let imageData: Data
+    @Binding var bias: Double
+    var onCommit: () -> Void
+
+    @State private var dragAnchor: Double?
+    private let bannerHeight: CGFloat = 220
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let size = decodedSize
+            let scale = max(width / size.width, bannerHeight / size.height)
+            let overflow = max(0, size.height * scale - bannerHeight)
+
+            Color.clear
+                .frame(width: width, height: bannerHeight)
+                .overlay {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: width, height: bannerHeight)
+                        .offset(y: (0.5 - bias) * overflow)
+                }
+                .clipped()
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    DragGesture()
+                        .onChanged { value in
+                            guard overflow > 0 else { return }
+                            let start = dragAnchor ?? bias
+                            if dragAnchor == nil { dragAnchor = bias }
+                            bias = min(max(start - value.translation.height / overflow, 0), 1)
+                        }
+                        .onEnded { _ in
+                            guard dragAnchor != nil else { return }
+                            dragAnchor = nil
+                            onCommit()
+                        }
+                )
+        }
+        .frame(height: bannerHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var decodedSize: CGSize {
+        #if canImport(UIKit)
+        UIImage(data: imageData)?.size ?? CGSize(width: 1, height: 1)
+        #else
+        NSImage(data: imageData)?.size ?? CGSize(width: 1, height: 1)
+        #endif
+    }
+
+    private var image: Image {
+        #if canImport(UIKit)
+        Image(uiImage: UIImage(data: imageData) ?? UIImage())
+        #else
+        Image(nsImage: NSImage(data: imageData) ?? NSImage())
         #endif
     }
 }

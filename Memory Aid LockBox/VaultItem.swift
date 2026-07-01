@@ -20,6 +20,12 @@ final class VaultItem {
     @Attribute(.externalStorage)
     var imageData: [Data] = []
 
+    /// Vertical framing of the header image (the first attachment) within its
+    /// banner: 0 = show the top, 0.5 = centered, 1 = show the bottom. Lets a tall
+    /// portrait photo be panned so the right part lands in the banner.
+    /// Defaulted for CloudKit; existing notes read back as centered.
+    var headerVerticalBias: Double = 0.5
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {
