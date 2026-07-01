@@ -14,5 +14,10 @@
 	<array>
 		<string>CloudKit</string>
 	</array>
+	<!-- macOS App Sandbox: read/write access to the Photos library, required to
+	     move media into the vault (and delete/export originals) on the Mac build.
+	     iOS ignores this sandbox key and uses the NSPhotoLibrary usage prompts. -->
+	<key>com.apple.security.personal-information.photos-library</key>
+	<true/>
 </dict>
 </plist>
