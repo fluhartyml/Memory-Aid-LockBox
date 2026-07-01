@@ -38,6 +38,20 @@ final class ScannerModel: NSObject, ObservableObject {
             | ICDeviceLocationTypeMask.bonjour.rawValue
         browser.browsedDeviceTypeMask = ICDeviceTypeMask(rawValue: mask)!
         browser.start()
+        startNoScannerTimeout()
+    }
+
+    /// ImageCaptureCore never reports "done searching," so an empty browse just
+    /// sits on "Looking for scanners…" forever. After a grace period with nothing
+    /// found, tell the user plainly instead of spinning.
+    private func startNoScannerTimeout() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard let self else { return }
+            if self.scanners.isEmpty && !self.isScanning {
+                self.status = "No scanner found. Connect a USB or network scanner and try again."
+            }
+        }
     }
 
     func stop() {

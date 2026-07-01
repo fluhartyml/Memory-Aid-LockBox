@@ -72,9 +72,9 @@ struct Memory_Aid_LockBoxApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
-        #if os(macOS)
-        // Adds "File → Import from iPhone or iPad → Scan Documents / Take Photo".
-        .commands { ImportFromDevicesCommands() }
-        #endif
+        // Continuity Camera ("Import from iPhone or iPad") removed: with CloudKit
+        // sync on, a document captured on the iPhone already appears on the Mac,
+        // so the Mac's iPhone-camera import path was redundant. USB/network
+        // scanning stays (ScannerSheet).
     }
 }

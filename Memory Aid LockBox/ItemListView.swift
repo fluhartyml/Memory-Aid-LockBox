@@ -48,16 +48,8 @@ struct ItemListView: View {
         }
         .navigationTitle(folder.name)
         #if os(macOS)
-        .importsItemProviders([.pdf, .image]) { providers in
-            Task {
-                let pages = await ContinuityScanImport.pngPages(from: providers)
-                if !pages.isEmpty {
-                    scannedPages = pages
-                    showAddItem = true
-                }
-            }
-            return true
-        }
+        // Continuity Camera import removed (CloudKit sync makes the iPhone-camera
+        // path redundant on the Mac). USB/network scanning via ScannerSheet stays.
         .sheet(isPresented: $showScannerSheet) {
             ScannerSheet { pages in
                 scannedPages = pages
