@@ -356,7 +356,19 @@ struct ItemDetailView: View {
     /// the attachment list.
     @MainActor
     private func addImage(from pickerItem: PhotosPickerItem, asHeader: Bool) async {
-        guard let data = try? await pickerItem.loadTransferable(type: Data.self) else { return }
+        // An iCloud photo that isn't downloaded locally makes the first load
+        // return nil (the load just starts the download) — which is why it used
+        // to take two picks. Retry briefly so a single pick waits for the
+        // download instead of silently skipping.
+        var data: Data?
+        for _ in 0..<10 {
+            if let loaded = try? await pickerItem.loadTransferable(type: Data.self) {
+                data = loaded
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+        guard let data else { return }
         if asHeader {
             if item.imageData.isEmpty {
                 item.imageData.append(data)
