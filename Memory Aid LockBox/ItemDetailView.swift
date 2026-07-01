@@ -14,6 +14,9 @@ import UIKit
 struct ItemDetailView: View {
     @Bindable var item: VaultItem
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var headerPhoto: PhotosPickerItem?
+    @State private var showLibraryPicker = false
+    @State private var showHeaderPicker = false
     @State private var showShareSheet = false
     @State private var showCamera = false
     @State private var showScanner = false
@@ -82,12 +85,22 @@ struct ItemDetailView: View {
             }
         }
         #endif
+        // Add-to-list picker and header picker. Presented-style pickers open more
+        // reliably on macOS than the button-style PhotosPicker.
+        .photosPicker(isPresented: $showLibraryPicker, selection: $selectedPhoto, matching: .images)
+        .photosPicker(isPresented: $showHeaderPicker, selection: $headerPhoto, matching: .images)
         .onChange(of: selectedPhoto) { _, newPhoto in
+            guard let newPhoto else { return }
             Task {
-                if let data = try? await newPhoto?.loadTransferable(type: Data.self) {
-                    item.imageData.append(data)
-                    item.dateModified = Date()
-                }
+                await addImage(from: newPhoto, asHeader: false)
+                selectedPhoto = nil   // reset so re-picking the same photo works
+            }
+        }
+        .onChange(of: headerPhoto) { _, newPhoto in
+            guard let newPhoto else { return }
+            Task {
+                await addImage(from: newPhoto, asHeader: true)
+                headerPhoto = nil
             }
         }
         .onChange(of: item.title) { _, _ in item.dateModified = Date() }
@@ -171,7 +184,9 @@ struct ItemDetailView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 30) {
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                Button {
+                    showLibraryPicker = true
+                } label: {
                     VStack(spacing: 4) {
                         Image(systemName: "photo.badge.plus")
                             .font(.system(size: 24))
@@ -179,6 +194,7 @@ struct ItemDetailView: View {
                             .font(.system(size: 14))
                     }
                 }
+                .buttonStyle(.plain)
 
                 #if os(iOS)
                 Button {
@@ -256,6 +272,11 @@ struct ItemDetailView: View {
             Label("View Full Size", systemImage: "arrow.up.left.and.arrow.down.right")
         }
         #endif
+        Button {
+            showHeaderPicker = true
+        } label: {
+            Label("Replace Header Image", systemImage: "photo")
+        }
         Button(role: .destructive) {
             if !item.imageData.isEmpty {
                 item.imageData.removeFirst()
@@ -328,6 +349,23 @@ struct ItemDetailView: View {
         guard item.imageData.indices.contains(index) else { return }
         let img = item.imageData.remove(at: index)
         item.imageData.insert(img, at: 0)
+        item.dateModified = Date()
+    }
+
+    /// Load a picked photo and either replace the header (index 0) or add it to
+    /// the attachment list.
+    @MainActor
+    private func addImage(from pickerItem: PhotosPickerItem, asHeader: Bool) async {
+        guard let data = try? await pickerItem.loadTransferable(type: Data.self) else { return }
+        if asHeader {
+            if item.imageData.isEmpty {
+                item.imageData.append(data)
+            } else {
+                item.imageData[0] = data
+            }
+        } else {
+            item.imageData.append(data)
+        }
         item.dateModified = Date()
     }
 
