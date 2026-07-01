@@ -28,6 +28,7 @@ struct ItemDetailView: View {
     @State private var showLocationError = false
     @State private var showAddContact = false
     @State private var contactShareFile: ShareableFile?
+    @State private var isReadingContact = false
 
     /// This item is a secure contact card — show the contact fields + the
     /// share / add-to-Contacts actions.
@@ -245,6 +246,25 @@ struct ItemDetailView: View {
             contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse")
 
             #if os(iOS)
+            if !item.imageData.isEmpty {
+                Button {
+                    fillContactFromImage()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isReadingContact {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "text.viewfinder").font(.system(size: 16))
+                        }
+                        Text(isReadingContact ? "Reading…" : "Fill from image")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .disabled(isReadingContact)
+            }
+
             HStack(spacing: 12) {
                 Button {
                     shareContact()
@@ -322,6 +342,34 @@ struct ItemDetailView: View {
     private func shareContact() {
         guard let url = ContactCardService.vCardFileURL(for: buildContact(), name: item.title) else { return }
         contactShareFile = ShareableFile(url: url)
+    }
+
+    /// Read the first attached image (e.g. a business card) with on-device OCR
+    /// and fill any EMPTY contact fields — never overwrites what's already there.
+    /// Uses the on-device model when available, else NSDataDetector heuristics.
+    private func fillContactFromImage() {
+        guard let first = item.imageData.first else { return }
+        Task {
+            isReadingContact = true
+            defer { isReadingContact = false }
+
+            if let card = await CardTextRecognizer.recognize(from: first),
+               let smart = await CardFieldExtractor.extractContact(from: card.fullText) {
+                fillContact(name: smart.name, phone: smart.phone, email: smart.email, address: smart.address)
+            } else if let heur = await CardTextRecognizer.contactFields(from: first) {
+                fillContact(name: heur.name ?? "", phone: heur.phone ?? "",
+                            email: heur.email ?? "", address: heur.address ?? "")
+            }
+        }
+    }
+
+    /// Fill only the contact fields the user hasn't set yet.
+    private func fillContact(name: String, phone: String, email: String, address: String) {
+        if (item.title.isEmpty || item.title == "Untitled"), !name.isEmpty { item.title = name }
+        if item.contactPhone.isEmpty, !phone.isEmpty { item.contactPhone = phone }
+        if item.contactEmail.isEmpty, !email.isEmpty { item.contactEmail = email }
+        if item.contactAddress.isEmpty, !address.isEmpty { item.contactAddress = address }
+        item.dateModified = Date()
     }
     #endif
 

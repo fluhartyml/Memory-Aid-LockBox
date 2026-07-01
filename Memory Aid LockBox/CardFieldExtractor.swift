@@ -30,6 +30,23 @@ struct ExtractedCardFields {
     @Guide(description: "Any other useful details as a short summary — telephone number, street address, expiration date, name on the card. Empty if none.")
     var details: String
 }
+
+/// Typed contact fields the on-device model pulls from a business card, sign, or
+/// storefront — feeds a secure contact card.
+@Generable
+struct ExtractedContactFields {
+    @Guide(description: "The person's or business's full name. Empty if not clearly present.")
+    var name: String
+
+    @Guide(description: "The primary telephone number as printed. Empty if none.")
+    var phone: String
+
+    @Guide(description: "The email address. Empty if none.")
+    var email: String
+
+    @Guide(description: "The full mailing/street address on one line. Empty if none.")
+    var address: String
+}
 #endif
 
 enum CardFieldExtractor {
@@ -72,11 +89,45 @@ enum CardFieldExtractor {
         #endif
     }
 
+    /// Plain contact result the UI uses, decoupled from FoundationModels types.
+    struct ContactFields {
+        var name: String
+        var phone: String
+        var email: String
+        var address: String
+    }
+
+    /// Extract contact details (name/phone/email/address) from OCR text with the
+    /// on-device model. Returns nil if the model is unavailable or extraction
+    /// fails — the caller should then fall back to CardTextRecognizer heuristics.
+    static func extractContact(from text: String) async -> ContactFields? {
+        #if canImport(FoundationModels)
+        guard SystemLanguageModel.default.isAvailable else { return nil }
+        let session = LanguageModelSession(instructions: contactInstructions)
+        let prompt = "Extract the contact details from this scanned text (a business card, sign, or storefront):\n\n\(text)"
+        guard let response = try? await session.respond(to: prompt,
+                                                        generating: ExtractedContactFields.self) else {
+            return nil
+        }
+        let f = response.content
+        return ContactFields(name: f.name, phone: f.phone, email: f.email, address: f.address)
+        #else
+        return nil
+        #endif
+    }
+
     #if canImport(FoundationModels)
     private static let instructions = """
     You extract fields from the OCR text of a card, account, or membership. \
     Use only information that is present in the text. If a field is not clearly \
     there, leave it empty. Never invent, guess, or reformat values beyond light \
+    cleanup of obvious OCR spacing.
+    """
+
+    private static let contactInstructions = """
+    You extract contact details from the OCR text of a business card, sign, or \
+    storefront. Use only information present in the text. If a field is not \
+    clearly there, leave it empty. Never invent or guess values beyond light \
     cleanup of obvious OCR spacing.
     """
     #endif

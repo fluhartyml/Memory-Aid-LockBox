@@ -51,6 +51,58 @@ enum CardTextRecognizer {
         } ?? lines.first
     }
 
+    // MARK: - Contact heuristics (fallback when the on-device model is absent)
+
+    /// Contact details pulled from a scanned card/sign with plain heuristics.
+    struct RecognizedContact {
+        var name: String?
+        var phone: String?
+        var email: String?
+        var address: String?
+    }
+
+    /// OCR the image, then pull name/phone/email/address with NSDataDetector +
+    /// a light email regex. Used when Foundation Models isn't available.
+    static func contactFields(from imageData: Data) async -> RecognizedContact? {
+        guard let card = await recognize(from: imageData) else { return nil }
+        return heuristicContact(in: card.lines)
+    }
+
+    private static func heuristicContact(in lines: [String]) -> RecognizedContact {
+        let joined = lines.joined(separator: " ")
+        return RecognizedContact(
+            name: bestTitle(in: lines),
+            phone: bestNumber(in: lines),
+            email: firstEmail(in: lines),
+            address: firstAddress(in: joined)
+        )
+    }
+
+    /// First token matching a simple email pattern.
+    private static func firstEmail(in lines: [String]) -> String? {
+        let pattern = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        for line in lines {
+            let range = NSRange(line.startIndex..., in: line)
+            if let match = regex.firstMatch(in: line, options: [], range: range),
+               let r = Range(match.range, in: line) {
+                return String(line[r])
+            }
+        }
+        return nil
+    }
+
+    /// A postal address detected anywhere in the joined text.
+    private static func firstAddress(in text: String) -> String? {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.address.rawValue) else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        if let match = detector.firstMatch(in: text, options: [], range: range),
+           let r = Range(match.range, in: text) {
+            return String(text[r])
+        }
+        return nil
+    }
+
     /// A phone number (via NSDataDetector) or, failing that, the line with the
     /// most digits (a card/account number). Returns nil if nothing looks numeric.
     private static func bestNumber(in lines: [String]) -> String? {
