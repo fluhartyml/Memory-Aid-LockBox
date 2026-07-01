@@ -18,11 +18,11 @@ struct LockedFolderView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            // The "BrandMark" image goes here once the art asset is added; until
-            // then the lock symbol stands in.
-            Image(systemName: "lock.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.blue)
+            Image("BrandMark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 120)
+                .accessibilityHidden(true)
 
             Text("\(folder.name) is locked")
                 .font(.system(size: 24, weight: .bold))

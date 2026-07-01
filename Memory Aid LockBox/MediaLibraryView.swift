@@ -106,7 +106,14 @@ struct MediaLibraryView: View {
     private var content: some View {
         if assets.isEmpty && !isImporting {
             ContentUnavailableView {
-                Label("No Media Yet", systemImage: "photo.on.rectangle.angled")
+                Label {
+                    Text("No Media Yet")
+                } icon: {
+                    Image("BrandMark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 96, height: 96)
+                }
             } description: {
                 Text("Move photos and videos in from Apple Photos. They'll live here in the vault.")
             } actions: {

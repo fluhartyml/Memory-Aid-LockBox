@@ -127,11 +127,18 @@ struct VaultTabView: View {
                 )
             }
         } else {
-            ContentUnavailableView(
-                "Select a Folder",
-                systemImage: "sidebar.leading",
-                description: Text("Choose a folder from the sidebar")
-            )
+            ContentUnavailableView {
+                Label {
+                    Text("Select a Folder")
+                } icon: {
+                    Image("BrandMark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 96, height: 96)
+                }
+            } description: {
+                Text("Choose a folder from the sidebar")
+            }
             .font(.system(size: 18))
         }
     }

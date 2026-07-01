@@ -25,9 +25,11 @@ struct LockScreenView: View {
                 }
         } else {
             VStack(spacing: 30) {
-                Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.blue)
+                Image("BrandMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 140, height: 140)
+                    .accessibilityHidden(true)
 
                 Text("Memory Aid Lockbox")
                     .font(.system(size: 28, weight: .bold))
