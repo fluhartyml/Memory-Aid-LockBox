@@ -27,6 +27,7 @@ struct AddItemView: View {
     @State private var showScannerMac = false
     @State private var libraryItem: PhotosPickerItem?
     @State private var viewingImage: ViewableImage?
+    @State private var isReadingCard = false
 
     private struct ViewableImage: Identifiable {
         let id = UUID()
@@ -64,10 +65,18 @@ struct AddItemView: View {
                 // Capture + large image display, in the space below Notes.
                 Section {
                     captureButtons
+                    if !attachedImages.isEmpty {
+                        fillFromImageButton
+                    }
                     imageArea
                 } header: {
                     Text(folder.name == "Cards" ? "Card Image" : "Image")
                         .font(.system(size: 16))
+                } footer: {
+                    if !attachedImages.isEmpty {
+                        Text("\"Fill from image\" reads the card with on-device text recognition and fills any empty fields — you can edit them before saving.")
+                            .font(.system(size: 13))
+                    }
                 }
             }
             #if os(macOS)
@@ -217,6 +226,42 @@ struct AddItemView: View {
             attachedImages.remove(at: index)
         } label: {
             Label("Remove Image", systemImage: "trash")
+        }
+    }
+
+    // MARK: - Fill from image (on-device OCR)
+
+    private var fillFromImageButton: some View {
+        Button {
+            fillFromCard()
+        } label: {
+            HStack(spacing: 8) {
+                if isReadingCard {
+                    ProgressView()
+                } else {
+                    Image(systemName: "text.viewfinder").font(.system(size: 18))
+                }
+                Text(isReadingCard ? "Reading…" : "Fill from image")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.accentColor)
+        .disabled(isReadingCard)
+    }
+
+    /// Read the first image with on-device OCR and fill any EMPTY fields — never
+    /// overwrites something the user already typed.
+    private func fillFromCard() {
+        guard let first = attachedImages.first else { return }
+        Task {
+            isReadingCard = true
+            if let card = await CardTextRecognizer.recognize(from: first) {
+                if title.isEmpty, let suggested = card.suggestedTitle { title = suggested }
+                if pin.isEmpty, let number = card.suggestedNumber { pin = number }
+                if notes.isEmpty { notes = card.fullText }
+            }
+            isReadingCard = false
         }
     }
 
