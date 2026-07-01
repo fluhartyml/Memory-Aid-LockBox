@@ -256,12 +256,21 @@ struct AddItemView: View {
         guard let first = attachedImages.first else { return }
         Task {
             isReadingCard = true
-            if let card = await CardTextRecognizer.recognize(from: first) {
+            defer { isReadingCard = false }
+            guard let card = await CardTextRecognizer.recognize(from: first) else { return }
+
+            // On an Apple-Intelligence device, let the on-device model sort the
+            // text into the right fields; otherwise use the plain OCR heuristics.
+            if let smart = await CardFieldExtractor.extract(from: card.fullText) {
+                if title.isEmpty, !smart.title.isEmpty { title = smart.title }
+                if pin.isEmpty, !smart.number.isEmpty { pin = smart.number }
+                if notes.isEmpty, !smart.notes.isEmpty { notes = smart.notes }
+            } else {
                 if title.isEmpty, let suggested = card.suggestedTitle { title = suggested }
                 if pin.isEmpty, let number = card.suggestedNumber { pin = number }
-                if notes.isEmpty { notes = card.fullText }
             }
-            isReadingCard = false
+            // Whatever ran, never leave notes blank when text was read.
+            if notes.isEmpty { notes = card.fullText }
         }
     }
 
