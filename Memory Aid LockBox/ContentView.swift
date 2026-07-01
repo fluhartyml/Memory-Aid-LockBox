@@ -29,6 +29,11 @@ struct VaultTabView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
+        // Two-column split: folders sidebar + a content column that pushes the
+        // item detail within its own NavigationStack (instead of a third column).
+        // A 2-column split expands on a Max-class phone in landscape, so the
+        // folders sidebar now shows on the phone — not just on iPad/Mac. (A
+        // 3-column split only expanded at iPad width, collapsing on every phone.)
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(
                 folders: folders,
@@ -57,43 +62,17 @@ struct VaultTabView: View {
                     }
                 }
             }
-        } content: {
-            if let folder = selectedFolder {
-                // Lockbox: every folder is gated behind the vault lock.
-                if !vaultLock.isUnlocked {
-                    LockedFolderView(folder: folder) {
-                        vaultLock.unlock(forMinutes: autoLockMinutes)
-                    }
-                } else if folder.name == "Photos" {
-                    MediaLibraryView(folder: folder)
-                } else {
-                    ItemListView(
-                        folder: folder,
-                        selectedItem: $selectedItem,
-                        searchText: $searchText
-                    )
-                }
-            } else {
-                ContentUnavailableView(
-                    "Select a Folder",
-                    systemImage: "sidebar.leading",
-                    description: Text("Choose a folder from the sidebar")
-                )
-                .font(.system(size: 18))
-            }
         } detail: {
-            if let item = selectedItem {
-                ItemDetailView(item: item)
-            } else {
-                ContentUnavailableView(
-                    "Select an Item",
-                    systemImage: "doc.text",
-                    description: Text("Choose an item to view its details")
-                )
-                .font(.system(size: 18))
+            NavigationStack {
+                folderContent
+                    // Selecting an item in ItemListView sets selectedItem, which
+                    // pushes its detail here. Popping clears the binding.
+                    .navigationDestination(item: $selectedItem) { item in
+                        ItemDetailView(item: item)
+                    }
+                    .searchable(text: $searchText, prompt: "Search vault")
             }
         }
-        .searchable(text: $searchText, prompt: "Search vault")
         .sheet(isPresented: $showAddFolder) {
             AddFolderView()
         }
@@ -102,6 +81,11 @@ struct VaultTabView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        // Switching folders drops any pushed item detail so we don't linger on an
+        // item that belongs to the folder we just left.
+        .onChange(of: selectedFolder) { _, _ in
+            selectedItem = nil
         }
         // When protected folders re-lock (timeout fired), eject the user back to
         // the folder list so nothing sensitive stays on screen mid-view.
@@ -121,6 +105,35 @@ struct VaultTabView: View {
         // Starter folders are seeded by DefaultFolderSeeder (called from the app
         // entry point) once CloudKit's initial import has settled — not here,
         // where the store is momentarily empty before the cloud import lands.
+    }
+
+    // The content column: the selected folder's contents, or a placeholder.
+    // Lives inside the detail NavigationStack so item detail pushes over it.
+    @ViewBuilder
+    private var folderContent: some View {
+        if let folder = selectedFolder {
+            // Lockbox: every folder is gated behind the vault lock.
+            if !vaultLock.isUnlocked {
+                LockedFolderView(folder: folder) {
+                    vaultLock.unlock(forMinutes: autoLockMinutes)
+                }
+            } else if folder.name == "Photos" {
+                MediaLibraryView(folder: folder)
+            } else {
+                ItemListView(
+                    folder: folder,
+                    selectedItem: $selectedItem,
+                    searchText: $searchText
+                )
+            }
+        } else {
+            ContentUnavailableView(
+                "Select a Folder",
+                systemImage: "sidebar.leading",
+                description: Text("Choose a folder from the sidebar")
+            )
+            .font(.system(size: 18))
+        }
     }
 
     private var aboutButtonPlacement: ToolbarItemPlacement {
