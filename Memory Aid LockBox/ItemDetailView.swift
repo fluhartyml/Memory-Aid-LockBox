@@ -10,6 +10,9 @@ import PhotosUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(iOS)
+import Contacts
+#endif
 
 struct ItemDetailView: View {
     @Bindable var item: VaultItem
@@ -23,6 +26,20 @@ struct ItemDetailView: View {
     @State private var viewingImage: Data?
     @State private var capturingLocation = false
     @State private var showLocationError = false
+    @State private var showAddContact = false
+    @State private var contactShareFile: ShareableFile?
+
+    /// This item is a secure contact card — show the contact fields + the
+    /// share / add-to-Contacts actions.
+    private var isContactItem: Bool {
+        item.isContact || item.folder?.name == "Contacts"
+    }
+
+    /// Wraps the temp .vcf URL so it can drive `.sheet(item:)`.
+    private struct ShareableFile: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
 
     var body: some View {
         ScrollView {
@@ -52,6 +69,11 @@ struct ItemDetailView: View {
 
                 // Notes
                 notesSection
+
+                // Secure contact card fields + share / add-to-Contacts
+                if isContactItem {
+                    contactSection
+                }
 
                 // Image shown large in the space below Notes
                 photosSection
@@ -114,6 +136,14 @@ struct ItemDetailView: View {
         #if os(iOS)
         .sheet(item: $viewingImage) { imageData in
             ImageViewerView(imageData: imageData)
+        }
+        .sheet(isPresented: $showAddContact) {
+            AddToContactsView(contact: buildContact()) {
+                showAddContact = false
+            }
+        }
+        .sheet(item: $contactShareFile) { file in
+            ShareActivityView(items: [file.url])
         }
         .alert("Couldn't add location", isPresented: $showLocationError) {
             Button("OK", role: .cancel) {}
@@ -201,6 +231,99 @@ struct ItemDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
+
+    // MARK: - Secure contact card
+
+    private var contactSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Contact")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            contactField("Phone", text: $item.contactPhone, systemImage: "phone")
+            contactField("Email", text: $item.contactEmail, systemImage: "envelope")
+            contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse")
+
+            #if os(iOS)
+            HStack(spacing: 12) {
+                Button {
+                    shareContact()
+                } label: {
+                    Label("Share Contact Card", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    showAddContact = true
+                } label: {
+                    Label("Add to My Contacts", systemImage: "person.crop.circle.badge.plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.top, 4)
+            #endif
+        }
+    }
+
+    private func contactField(_ label: String, text: Binding<String>, systemImage: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            TextField(label, text: text)
+                .font(.system(size: 18))
+                .textFieldStyle(.plain)
+                #if os(iOS)
+                .textContentType(contentType(for: label))
+                .keyboardType(keyboardType(for: label))
+                .autocorrectionDisabled(label != "Address")
+                .textInputAutocapitalization(label == "Email" ? .never : .words)
+                #endif
+        }
+        .padding(10)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    #if os(iOS)
+    private func contentType(for label: String) -> UITextContentType? {
+        switch label {
+        case "Phone": return .telephoneNumber
+        case "Email": return .emailAddress
+        case "Address": return .fullStreetAddress
+        default: return nil
+        }
+    }
+
+    private func keyboardType(for label: String) -> UIKeyboardType {
+        switch label {
+        case "Phone": return .phonePad
+        case "Email": return .emailAddress
+        default: return .default
+        }
+    }
+
+    /// Build a system contact from this item's fields.
+    private func buildContact() -> CNMutableContact {
+        ContactCardService.makeContact(
+            name: item.title,
+            phone: item.contactPhone,
+            email: item.contactEmail,
+            address: item.contactAddress
+        )
+    }
+
+    /// Write the contact to a temp .vcf and present the share sheet.
+    private func shareContact() {
+        guard let url = ContactCardService.vCardFileURL(for: buildContact(), name: item.title) else { return }
+        contactShareFile = ShareableFile(url: url)
+    }
+    #endif
 
     // MARK: - Photos
 

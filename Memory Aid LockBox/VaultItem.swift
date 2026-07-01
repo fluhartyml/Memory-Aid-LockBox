@@ -26,6 +26,16 @@ final class VaultItem {
     /// Defaulted for CloudKit; existing notes read back as centered.
     var headerVerticalBias: Double = 0.5
 
+    // Secure-contact fields. Used when the item is a contact card (the name is
+    // the item's `title`). Empty for a normal note. All defaulted for CloudKit.
+    var contactPhone: String = ""
+    var contactEmail: String = ""
+    var contactAddress: String = ""
+
+    /// True when this item is a secure contact card (drives the contact UI +
+    /// share/add-to-Contacts actions). Defaulted for CloudKit.
+    var isContact: Bool = false
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {
