@@ -37,6 +37,14 @@ final class VaultLock {
         }
     }
 
+    /// Re-arm the auto-lock window with a new timeout — e.g. the user changed
+    /// the setting mid-session. Restarts the countdown from now with the new
+    /// duration. No-op while the vault is locked (the next unlock uses it).
+    func reschedule(forMinutes minutes: Int) {
+        guard isUnlocked else { return }
+        unlock(forMinutes: minutes)
+    }
+
     /// Re-lock right now (app backgrounded, or any manual lock).
     func lockNow() {
         relockTask?.cancel()

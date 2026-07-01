@@ -94,6 +94,11 @@ struct VaultTabView: View {
         .onChange(of: selectedFolder) { _, _ in
             selectedItem = nil
         }
+        // Changing the auto-lock timeout in Settings re-arms the running window
+        // so the new value takes effect immediately (not just on the next unlock).
+        .onChange(of: autoLockMinutes) { _, newValue in
+            vaultLock.reschedule(forMinutes: newValue)
+        }
         // When protected folders re-lock (timeout fired), eject the user back to
         // the folder list so nothing sensitive stays on screen mid-view.
         .onChange(of: vaultLock.isUnlocked) { _, unlocked in
