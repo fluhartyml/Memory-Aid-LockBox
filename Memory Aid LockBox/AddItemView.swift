@@ -25,9 +25,11 @@ struct AddItemView: View {
     @State private var showScanner = false
     @State private var showCamera = false
     @State private var showScannerMac = false
+    @State private var showPlaceCamera = false
     @State private var libraryItem: PhotosPickerItem?
     @State private var viewingImage: ViewableImage?
     @State private var isReadingCard = false
+    @State private var isCapturingPlace = false
 
     private struct ViewableImage: Identifiable {
         let id = UUID()
@@ -120,6 +122,11 @@ struct AddItemView: View {
                     attachedImages.append(data)
                 }
             }
+            .sheet(isPresented: $showPlaceCamera) {
+                CameraCaptureView { data in
+                    Task { await runPlaceCapture(photo: data) }
+                }
+            }
             .sheet(item: $viewingImage) { viewable in
                 ImageViewerView(imageData: viewable.data)
             }
@@ -140,6 +147,7 @@ struct AddItemView: View {
             #if os(iOS)
             captureButton("Scan", systemImage: "doc.viewfinder") { showScanner = true }
             captureButton("Camera", systemImage: "camera") { showCamera = true }
+            placeButton
             #else
             captureButton("Scan", systemImage: "scanner") { showScannerMac = true }
             #endif
@@ -158,6 +166,28 @@ struct AddItemView: View {
         Button(action: action) { captureLabel(title, systemImage: systemImage) }
             .buttonStyle(.plain)
     }
+
+    #if os(iOS)
+    /// One-tap "capture a place": photograph a storefront/sign, then fill the
+    /// fields from the sign's text AND drop in a GPS map of where you're standing.
+    private var placeButton: some View {
+        Button {
+            showPlaceCamera = true
+        } label: {
+            VStack(spacing: 4) {
+                if isCapturingPlace {
+                    ProgressView().frame(height: 24)
+                } else {
+                    Image(systemName: "storefront").font(.system(size: 24))
+                }
+                Text(isCapturingPlace ? "Reading…" : "Place").font(.system(size: 14))
+            }
+            .foregroundStyle(Color.accentColor)
+        }
+        .buttonStyle(.plain)
+        .disabled(isCapturingPlace)
+    }
+    #endif
 
     private func captureLabel(_ title: String, systemImage: String) -> some View {
         VStack(spacing: 4) {
@@ -273,6 +303,40 @@ struct AddItemView: View {
             if notes.isEmpty { notes = card.fullText }
         }
     }
+
+    // MARK: - Capture Place (one tap: sign photo -> fields + GPS map)
+
+    #if os(iOS)
+    /// One-tap place capture. The photographed storefront/sign becomes the header
+    /// image, its text fills any empty fields (name -> title, hours/phone/address
+    /// -> notes), and a GPS map of the current location is appended. Everything
+    /// stays editable before Save.
+    private func runPlaceCapture(photo: Data) async {
+        isCapturingPlace = true
+        defer { isCapturingPlace = false }
+
+        // The sign photo leads (becomes the header image).
+        attachedImages.insert(photo, at: 0)
+
+        // Read the sign and fill empty fields — on-device model if available,
+        // else the plain OCR heuristics.
+        if let card = await CardTextRecognizer.recognize(from: photo) {
+            if let smart = await CardFieldExtractor.extract(from: card.fullText) {
+                if title.isEmpty, !smart.title.isEmpty { title = smart.title }
+                if pin.isEmpty, !smart.number.isEmpty { pin = smart.number }
+                if notes.isEmpty, !smart.notes.isEmpty { notes = smart.notes }
+            } else {
+                if title.isEmpty, let suggested = card.suggestedTitle { title = suggested }
+            }
+            if notes.isEmpty { notes = card.fullText }
+        }
+
+        // Drop in a GPS-embedded map of where you're standing.
+        if let map = await LocationMapCapture.captureCurrentLocationMap() {
+            attachedImages.append(map)
+        }
+    }
+    #endif
 
     // MARK: - Save
 
