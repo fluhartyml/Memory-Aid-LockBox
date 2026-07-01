@@ -14,17 +14,21 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 
-/// Typed fields the on-device model pulls out of OCR text.
+/// Typed fields the on-device model pulls out of OCR text. General enough for a
+/// card, an account, or a storefront/sign (name + hours + address).
 @Generable
 struct ExtractedCardFields {
-    @Guide(description: "The card, account, or membership name (e.g. 'Chase Visa', 'Public Library Card'). Empty if not clearly present.")
+    @Guide(description: "The name — of the card, account, business, or place (e.g. 'Chase Visa', 'Ace Hardware'). Empty if not clearly present.")
     var title: String
 
-    @Guide(description: "The primary card, account, or member number as printed. Empty if none is present.")
+    @Guide(description: "The primary card, account, or member number as printed (NOT a phone number). Empty if none is present.")
     var number: String
 
-    @Guide(description: "Any other useful details as a short readable summary — expiration date, name on the card, phone, address. Empty if none.")
-    var notes: String
+    @Guide(description: "Opening / store hours if shown (e.g. on a storefront door), formatted readably like 'Mon–Fri 9–5, Sat 10–2'. Empty if none.")
+    var hours: String
+
+    @Guide(description: "Any other useful details as a short summary — telephone number, street address, expiration date, name on the card. Empty if none.")
+    var details: String
 }
 #endif
 
@@ -52,13 +56,17 @@ enum CardFieldExtractor {
         #if canImport(FoundationModels)
         guard SystemLanguageModel.default.isAvailable else { return nil }
         let session = LanguageModelSession(instructions: instructions)
-        let prompt = "Extract the fields from this scanned card/account text:\n\n\(text)"
+        let prompt = "Extract the fields from this scanned text (a card, account, or a storefront/sign):\n\n\(text)"
         guard let response = try? await session.respond(to: prompt,
                                                         generating: ExtractedCardFields.self) else {
             return nil
         }
         let fields = response.content
-        return Fields(title: fields.title, number: fields.number, notes: fields.notes)
+        // Fold hours + details into the note body.
+        let noteParts = [fields.hours, fields.details].filter { !$0.isEmpty }
+        return Fields(title: fields.title,
+                      number: fields.number,
+                      notes: noteParts.joined(separator: "\n"))
         #else
         return nil
         #endif
