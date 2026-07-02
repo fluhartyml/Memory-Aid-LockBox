@@ -25,6 +25,7 @@ struct VaultTabView: View {
     @State private var showAddFolder = false
     @State private var showAbout = false
     @State private var showSettings = false
+    @State private var showAsk = false
     @State private var searchText = ""
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -78,6 +79,26 @@ struct VaultTabView: View {
                         ItemDetailView(item: item)
                     }
                     .searchable(text: $searchText, prompt: "Search vault")
+                    .toolbar {
+                        // Natural-language recall over the vault. Only offered
+                        // while unlocked, since it reads across every entry.
+                        if vaultLock.isUnlocked {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button {
+                                    showAsk = true
+                                } label: {
+                                    Label("Ask", systemImage: "sparkle.magnifyingglass")
+                                }
+                            }
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: $showAsk) {
+            AskVaultView { item in
+                // Jump to the tapped source entry.
+                selectedFolder = item.folder
+                selectedItem = item
             }
         }
         .sheet(isPresented: $showAddFolder) {
