@@ -41,17 +41,8 @@ struct SidebarView: View {
             }
             .onDelete(perform: deleteFolders)
         }
-        .navigationTitle("Memory Aid Lockbox")
+        .resizingNavigationTitle("Memory Aid Lockbox")
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // Auto-resizing title: the product name is longer than a large
-                // navigation title will display, so draw it as a Text we control
-                // and let it shrink to fit instead of truncating with an ellipsis.
-                Text("Memory Aid Lockbox")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showAddFolder = true
@@ -60,7 +51,6 @@ struct SidebarView: View {
                 }
             }
         }
-        .inlineNavigationTitle()
     }
 
     private func deleteFolders(at offsets: IndexSet) {

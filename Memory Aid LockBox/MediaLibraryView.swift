@@ -51,7 +51,7 @@ struct MediaLibraryView: View {
 
     var body: some View {
         content
-            .navigationTitle(folder.name)
+            .resizingNavigationTitle(folder.name)
             .toolbar { toolbarContent }
             // `photoLibrary: .shared()` is REQUIRED for itemIdentifier to be
             // populated — without it the picker runs out-of-process, identifiers
