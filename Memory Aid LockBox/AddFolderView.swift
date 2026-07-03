@@ -21,6 +21,8 @@ struct AddFolderView: View {
         "key.fill", "wifi", "house.fill", "car.fill",
         "airplane", "doc.fill", "globe", "heart.fill",
         "star.fill", "bookmark.fill",
+        "text.book.closed.fill", "book.closed.fill",
+        "list.bullet.rectangle.portrait.fill",
     ]
 
     var body: some View {
