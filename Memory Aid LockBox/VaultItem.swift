@@ -36,6 +36,15 @@ final class VaultItem {
     /// share/add-to-Contacts actions). Defaulted for CloudKit.
     var isContact: Bool = false
 
+    /// True when the contact is a BUSINESS/organization rather than a person.
+    /// Drives which contact fields show: a business gets Website + Hours; a
+    /// person gets a Relationship label. The `title` holds the person's name or
+    /// the company name accordingly. All defaulted for CloudKit.
+    var isBusinessContact: Bool = false
+    var contactWebsite: String = ""
+    var contactHours: String = ""
+    var contactRelationship: String = ""
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {

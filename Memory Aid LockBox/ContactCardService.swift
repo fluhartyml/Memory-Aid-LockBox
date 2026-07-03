@@ -14,15 +14,25 @@ import Contacts
 import ContactsUI
 
 enum ContactCardService {
-    /// Build a system contact from the vault item's fields (name = the title).
+    /// Build a system contact from the vault item's fields.
+    /// - For a PERSON, `name` splits into given/family.
+    /// - For a BUSINESS, `name` becomes the organization name (given/family stay
+    ///   blank) so Apple Contacts files it as a company — matching how the vault's
+    ///   business toggle presents it. `website` maps to a work URL.
     static func makeContact(name: String,
                             phone: String,
                             email: String,
-                            address: String) -> CNMutableContact {
+                            address: String,
+                            isBusiness: Bool = false,
+                            website: String = "") -> CNMutableContact {
         let contact = CNMutableContact()
-        let (given, family) = splitName(name)
-        contact.givenName = given
-        contact.familyName = family
+        if isBusiness {
+            contact.organizationName = name
+        } else {
+            let (given, family) = splitName(name)
+            contact.givenName = given
+            contact.familyName = family
+        }
 
         if !phone.isEmpty {
             contact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain,
@@ -34,7 +44,10 @@ enum ContactCardService {
         if !address.isEmpty {
             let postal = CNMutablePostalAddress()
             postal.street = address
-            contact.postalAddresses = [CNLabeledValue(label: CNLabelHome, value: postal)]
+            contact.postalAddresses = [CNLabeledValue(label: isBusiness ? CNLabelWork : CNLabelHome, value: postal)]
+        }
+        if !website.isEmpty {
+            contact.urlAddresses = [CNLabeledValue(label: CNLabelWork, value: website as NSString)]
         }
         return contact
     }

@@ -241,9 +241,22 @@ struct ItemDetailView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
+            Picker("Type", selection: $item.isBusinessContact) {
+                Text("Person").tag(false)
+                Text("Business").tag(true)
+            }
+            .pickerStyle(.segmented)
+
             contactField("Phone", text: $item.contactPhone, systemImage: "phone")
             contactField("Email", text: $item.contactEmail, systemImage: "envelope")
             contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse")
+
+            if item.isBusinessContact {
+                contactField("Website", text: $item.contactWebsite, systemImage: "globe")
+                contactField("Hours", text: $item.contactHours, systemImage: "clock")
+            } else {
+                contactField("Relationship", text: $item.contactRelationship, systemImage: "person.2")
+            }
 
             #if os(iOS)
             if !item.imageData.isEmpty {
@@ -302,7 +315,7 @@ struct ItemDetailView: View {
                 .textContentType(contentType(for: label))
                 .keyboardType(keyboardType(for: label))
                 .autocorrectionDisabled(label != "Address")
-                .textInputAutocapitalization(label == "Email" ? .never : .words)
+                .textInputAutocapitalization(label == "Email" || label == "Website" ? .never : .words)
                 #endif
         }
         .padding(10)
@@ -334,7 +347,9 @@ struct ItemDetailView: View {
             name: item.title,
             phone: item.contactPhone,
             email: item.contactEmail,
-            address: item.contactAddress
+            address: item.contactAddress,
+            isBusiness: item.isBusinessContact,
+            website: item.contactWebsite
         )
     }
 

@@ -16,6 +16,7 @@ struct ItemListView: View {
     @Binding var searchText: String
     @Environment(\.modelContext) private var modelContext
     @State private var showAddItem = false
+    @State private var showAddContact = false
     @State private var showScanner = false
     @State private var showPhotoPicker = false
     @State private var scannedPages: [Data] = []
@@ -37,6 +38,7 @@ struct ItemListView: View {
 
     var isCardFolder: Bool { folder.name == "Cards" }
     var isPhotoFolder: Bool { folder.name == "Photos" }
+    var isContactFolder: Bool { folder.name == "Contacts" }
 
     var body: some View {
         List(selection: $selectedItem) {
@@ -46,7 +48,7 @@ struct ItemListView: View {
             }
             .onDelete(perform: deleteItems)
         }
-        .navigationTitle(folder.name)
+        .resizingNavigationTitle(folder.name)
         #if os(macOS)
         // Continuity Camera import removed (CloudKit sync makes the iPhone-camera
         // path redundant on the Mac). USB/network scanning via ScannerSheet stays.
@@ -80,6 +82,15 @@ struct ItemListView: View {
                 .onDisappear {
                     scannedPages = []
                 }
+        }
+        #endif
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showAddContact) {
+            ContactEditView(folder: folder)
+        }
+        #else
+        .sheet(isPresented: $showAddContact) {
+            ContactEditView(folder: folder)
         }
         #endif
         #if os(iOS)
@@ -127,6 +138,8 @@ struct ItemListView: View {
         // both platforms, instead of jumping straight into the scanner.
         if isPhotoFolder {
             showPhotoPicker = true
+        } else if isContactFolder {
+            showAddContact = true
         } else {
             showAddItem = true
         }
