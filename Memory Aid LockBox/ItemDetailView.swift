@@ -60,13 +60,13 @@ struct ItemDetailView: View {
                     .font(.system(size: 24, weight: .bold))
                     .textFieldStyle(.plain)
 
-                // PIN display and copy
-                if !item.pin.isEmpty {
-                    pinDisplaySection
+                // PIN / Code — not shown for contacts (a contact has no PIN/Code).
+                if !isContactItem {
+                    if !item.pin.isEmpty {
+                        pinDisplaySection
+                    }
+                    pinEditorSection
                 }
-
-                // PIN editor
-                pinEditorSection
 
                 // Notes
                 notesSection
