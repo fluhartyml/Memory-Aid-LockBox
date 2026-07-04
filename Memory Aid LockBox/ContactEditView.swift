@@ -41,6 +41,9 @@ struct ContactEditView: View {
     @State private var relationship = ""
     @State private var notes = ""
     @State private var attachedImages: [Data] = []
+    // The MediaAsset created when a self-serve selfie is saved to the media
+    // library; kept so a retake updates it instead of adding a duplicate.
+    @State private var selfieMediaAsset: MediaAsset?
 
     @State private var libraryItem: PhotosPickerItem?
     @State private var isReadingContact = false
@@ -124,6 +127,7 @@ struct ContactEditView: View {
                         SelfieCaptureView { data in
                             if attachedImages.isEmpty { attachedImages.insert(data, at: 0) }
                             else { attachedImages[0] = data }
+                            saveSelfieToMedia(data)
                         }
                     case .contactPicker:
                         ContactPickerView { importContact($0) }
@@ -600,5 +604,30 @@ struct ContactEditView: View {
         item.contactRelationship = isBusiness ? "" : relationship
         item.imageData = attachedImages
         modelContext.insert(item)
+    }
+
+    /// Also save the self-serve selfie into the actual LockBox Photos folder —
+    /// the media library the user browses — so it lands in that media grid, not
+    /// only as the contact's photo. A retake updates the same asset instead of
+    /// duplicating.
+    private func saveSelfieToMedia(_ data: Data) {
+        let thumb = MediaThumbnailer.photoThumbnail(from: data)
+        if let existing = selfieMediaAsset {
+            existing.data = data
+            existing.thumbnailData = thumb
+            return
+        }
+        // The real Photos folder, by name; fall back to the media-library
+        // (photos-template) folder if it was renamed.
+        let folders = (try? modelContext.fetch(FetchDescriptor<Folder>())) ?? []
+        guard let photosFolder = folders.first(where: { $0.name == "Photos" })
+                ?? folders.first(where: { $0.template == .photos }) else { return }
+        let asset = MediaAsset(type: .photo,
+                               data: data,
+                               thumbnailData: thumb,
+                               originalFileName: "Selfie.jpg",
+                               folder: photosFolder)
+        modelContext.insert(asset)
+        selfieMediaAsset = asset
     }
 }
