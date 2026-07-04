@@ -11,11 +11,15 @@ import UIKit
 
 struct CameraCaptureView: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
+    var preferFrontCamera: Bool = false
     var onCapture: (Data) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
+        if preferFrontCamera, UIImagePickerController.isCameraDeviceAvailable(.front) {
+            picker.cameraDevice = .front
+        }
         picker.delegate = context.coordinator
         return picker
     }

@@ -7,7 +7,11 @@
 //  Specialized "New Contact" sheet for the Contacts folder — replaces the generic
 //  item sheet with contact-shaped fields and a Person / Business toggle. A business
 //  gets Website + Hours (e.g. store hours); a person gets a Relationship label.
-//  Everything saves onto the shared VaultItem model via its additive fields.
+//
+//  Also hosts SELF-SERVE mode: hand the phone to a guest so they enter their own
+//  info + a selfie, on a stripped screen with no route to the vault. Exiting the
+//  mode requires a Face ID challenge (owner). For a true hardware lock the owner
+//  uses Guided Access (a system feature) — the app can only coach it, not force it.
 //
 
 import SwiftUI
@@ -43,124 +47,162 @@ struct ContactEditView: View {
     @State private var isReadingContact = false
     @State private var showContactPicker = false
 
+    // Self-serve (hand-to-guest) mode
+    @State private var isSelfServe = false
+    @State private var showSelfieCamera = false
+    @State private var isVerifying = false
+
+    private var navTitle: String {
+        isSelfServe ? "Self-Serve" : (isBusiness ? "New Business" : "New Contact")
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
+            content
+                .navigationTitle(navTitle)
                 #if os(iOS)
-                Section {
-                    Button {
-                        showContactPicker = true
-                    } label: {
-                        Label("Import from Apple Contacts", systemImage: "person.crop.circle.badge.plus")
-                            .font(.system(size: 18))
+                .navigationBarTitleDisplayMode(.inline)
+                .interactiveDismissDisabled(isSelfServe)
+                #endif
+                .toolbar {
+                    if !isSelfServe {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { dismiss() }.font(.system(size: 18))
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Save") { save() }
+                                .font(.system(size: 18, weight: .semibold))
+                                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
                     }
-                } footer: {
-                    Text("Start from scratch below, or pull one of your Apple Contacts in — including their photo.")
-                        .font(.system(size: 13))
+                }
+                .onChange(of: libraryItem) { _, newItem in
+                    guard let newItem else { return }
+                    Task {
+                        if let data = try? await newItem.loadTransferable(type: Data.self) {
+                            attachedImages.append(data)
+                        }
+                        libraryItem = nil
+                    }
+                }
+                #if os(iOS)
+                .sheet(isPresented: $showCamera) {
+                    CameraCaptureView { data in attachedImages.append(data) }
+                }
+                .sheet(isPresented: $showScanner) {
+                    DocumentScannerView { pages in attachedImages.append(contentsOf: pages) }
+                }
+                .sheet(isPresented: $showSelfieCamera) {
+                    CameraCaptureView(preferFrontCamera: true) { data in
+                        if attachedImages.isEmpty { attachedImages.insert(data, at: 0) }
+                        else { attachedImages[0] = data }
+                    }
+                }
+                .sheet(isPresented: $showContactPicker) {
+                    ContactPickerView { importContact($0) }
+                }
+                #else
+                .sheet(isPresented: $showScannerMac) {
+                    ScannerSheet { pages in attachedImages.append(contentsOf: pages) }
                 }
                 #endif
-
-                Section {
-                    Picker("Type", selection: $isBusiness) {
-                        Text("Person").tag(false)
-                        Text("Business").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section {
-                    TextField(isBusiness ? "Company name" : "Full name", text: $name)
-                        .font(.system(size: 18))
-                        #if os(iOS)
-                        .textContentType(isBusiness ? .organizationName : .name)
-                        .textInputAutocapitalization(.words)
-                        #endif
-                } header: {
-                    Text(isBusiness ? "Company" : "Name").font(.system(size: 16))
-                }
-
-                Section {
-                    contactField("Phone", text: $phone, systemImage: "phone")
-                    contactField("Email", text: $email, systemImage: "envelope")
-                    contactField("Address", text: $address, systemImage: "mappin.and.ellipse")
-                    if isBusiness {
-                        contactField("Website", text: $website, systemImage: "globe")
-                        contactField("Hours", text: $hours, systemImage: "clock")
-                    } else {
-                        contactField("Relationship", text: $relationship, systemImage: "person.2")
-                    }
-                } header: {
-                    Text("Details").font(.system(size: 16))
-                }
-
-                Section {
-                    TextEditor(text: $notes)
-                        .font(.system(size: 18))
-                        .frame(minHeight: 80)
-                } header: {
-                    Text("Notes").font(.system(size: 16))
-                }
-
-                Section {
-                    captureButtons
-                    if !attachedImages.isEmpty {
-                        fillFromImageButton
-                        imageArea
-                    }
-                } header: {
-                    Text(isBusiness ? "Logo / Card" : "Photo / Card").font(.system(size: 16))
-                } footer: {
-                    if !attachedImages.isEmpty {
-                        Text("\"Fill from image\" reads a business card with on-device text recognition and fills any empty fields.")
-                            .font(.system(size: 13))
-                    }
-                }
-            }
-            #if os(macOS)
-            .formStyle(.grouped)
-            .frame(minWidth: 480, minHeight: 640)
-            #endif
-            .navigationTitle(isBusiness ? "New Business" : "New Contact")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }.font(.system(size: 18))
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .font(.system(size: 18, weight: .semibold))
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-            .onChange(of: libraryItem) { _, newItem in
-                guard let newItem else { return }
-                Task {
-                    if let data = try? await newItem.loadTransferable(type: Data.self) {
-                        attachedImages.append(data)
-                    }
-                    libraryItem = nil
-                }
-            }
-            #if os(iOS)
-            .sheet(isPresented: $showCamera) {
-                CameraCaptureView { data in attachedImages.append(data) }
-            }
-            .sheet(isPresented: $showScanner) {
-                DocumentScannerView { pages in attachedImages.append(contentsOf: pages) }
-            }
-            #else
-            .sheet(isPresented: $showScannerMac) {
-                ScannerSheet { pages in attachedImages.append(contentsOf: pages) }
-            }
-            #endif
-            #if os(iOS)
-            .sheet(isPresented: $showContactPicker) {
-                ContactPickerView { importContact($0) }
-            }
-            #endif
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        #if os(iOS)
+        if isSelfServe { selfServeIntake } else { normalForm }
+        #else
+        normalForm
+        #endif
+    }
+
+    // MARK: - Normal form
+
+    private var normalForm: some View {
+        Form {
+            #if os(iOS)
+            Section {
+                Button {
+                    showContactPicker = true
+                } label: {
+                    Label("Import from Apple Contacts", systemImage: "person.crop.circle.badge.plus")
+                        .font(.system(size: 18))
+                }
+                Button {
+                    isBusiness = false          // guests are people
+                    isSelfServe = true
+                } label: {
+                    Label("Hand to Guest (Self-Serve)", systemImage: "person.crop.circle.badge.questionmark")
+                        .font(.system(size: 18))
+                }
+            } footer: {
+                Text("Start from scratch below, pull one of your Apple Contacts in (with their photo), or hand the phone to a guest to enter their own info.")
+                    .font(.system(size: 13))
+            }
+            #endif
+
+            Section {
+                Picker("Type", selection: $isBusiness) {
+                    Text("Person").tag(false)
+                    Text("Business").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section {
+                TextField(isBusiness ? "Company name" : "Full name", text: $name)
+                    .font(.system(size: 18))
+                    #if os(iOS)
+                    .textContentType(isBusiness ? .organizationName : .name)
+                    .textInputAutocapitalization(.words)
+                    #endif
+            } header: {
+                Text(isBusiness ? "Company" : "Name").font(.system(size: 16))
+            }
+
+            Section {
+                contactField("Phone", text: $phone, systemImage: "phone")
+                contactField("Email", text: $email, systemImage: "envelope")
+                contactField("Address", text: $address, systemImage: "mappin.and.ellipse")
+                if isBusiness {
+                    contactField("Website", text: $website, systemImage: "globe")
+                    contactField("Hours", text: $hours, systemImage: "clock")
+                } else {
+                    contactField("Relationship", text: $relationship, systemImage: "person.2")
+                }
+            } header: {
+                Text("Details").font(.system(size: 16))
+            }
+
+            Section {
+                TextEditor(text: $notes)
+                    .font(.system(size: 18))
+                    .frame(minHeight: 80)
+            } header: {
+                Text("Notes").font(.system(size: 16))
+            }
+
+            Section {
+                captureButtons
+                if !attachedImages.isEmpty {
+                    fillFromImageButton
+                    imageArea
+                }
+            } header: {
+                Text(isBusiness ? "Logo / Card" : "Photo / Card").font(.system(size: 16))
+            } footer: {
+                if !attachedImages.isEmpty {
+                    Text("\"Fill from image\" reads a business card with on-device text recognition and fills any empty fields.")
+                        .font(.system(size: 13))
+                }
+            }
+        }
+        #if os(macOS)
+        .formStyle(.grouped)
+        .frame(minWidth: 480, minHeight: 640)
+        #endif
     }
 
     // MARK: - Capture
@@ -343,6 +385,112 @@ struct ContactEditView: View {
             attachedImages.insert(img, at: 0)
         } else if c.isKeyAvailable(CNContactThumbnailImageDataKey), let thumb = c.thumbnailImageData {
             attachedImages.insert(thumb, at: 0)
+        }
+    }
+    #endif
+
+    // MARK: - Self-serve (hand to guest)
+
+    #if os(iOS)
+    private var selfServeIntake: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                if !UIAccessibility.isGuidedAccessEnabled {
+                    guidedAccessTip
+                }
+
+                VStack(spacing: 6) {
+                    Text("Add Your Contact Info")
+                        .font(.system(size: 26, weight: .bold))
+                    Text("Enter your details and take a selfie, then hand the phone back.")
+                        .font(.system(size: 16)).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                selfieArea
+
+                VStack(spacing: 12) {
+                    guestField("Full name", text: $name, systemImage: "person")
+                    guestField("Phone", text: $phone, systemImage: "phone")
+                    guestField("Email", text: $email, systemImage: "envelope")
+                }
+
+                Button {
+                    returnToOwner()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isVerifying { ProgressView().tint(.white) }
+                        else { Image(systemName: "faceid").font(.system(size: 18)) }
+                        Text("Done — Return to Owner").font(.system(size: 18, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isVerifying)
+                .padding(.top, 4)
+            }
+            .padding()
+        }
+    }
+
+    private var guidedAccessTip: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.shield").font(.system(size: 18))
+            Text("Owner: triple-click the side button to lock the phone to this screen (Guided Access).")
+                .font(.system(size: 13))
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.yellow.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var selfieArea: some View {
+        VStack(spacing: 10) {
+            if let first = attachedImages.first, let ui = UIImage(data: first) {
+                Image(uiImage: ui).resizable().scaledToFill()
+                    .frame(width: 160, height: 160).clipShape(Circle())
+            } else {
+                Circle().fill(.quaternary).frame(width: 160, height: 160)
+                    .overlay(Image(systemName: "person.fill").font(.system(size: 64)).foregroundStyle(.secondary))
+            }
+            Button {
+                showSelfieCamera = true
+            } label: {
+                Label(attachedImages.isEmpty ? "Take Selfie" : "Retake Selfie", systemImage: "camera")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private func guestField(_ placeholder: String, text: Binding<String>, systemImage: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage).font(.system(size: 18)).foregroundStyle(.secondary).frame(width: 26)
+            TextField(placeholder, text: text)
+                .font(.system(size: 20))
+                .keyboardType(placeholder == "Phone" ? .phonePad : (placeholder == "Email" ? .emailAddress : .default))
+                .textContentType(placeholder == "Phone" ? .telephoneNumber : (placeholder == "Email" ? .emailAddress : .name))
+                .textInputAutocapitalization(placeholder == "Email" ? .never : .words)
+                .autocorrectionDisabled(placeholder == "Email")
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Owner takes the phone back: a Face ID challenge exits self-serve mode and
+    /// returns to the normal form (with the guest's info filled in for review).
+    private func returnToOwner() {
+        Task {
+            isVerifying = true
+            let ok = await BiometricAuthenticator.authenticate(reason: "Return control to the owner")
+            isVerifying = false
+            if ok {
+                isBusiness = false
+                isSelfServe = false
+            }
         }
     }
     #endif
