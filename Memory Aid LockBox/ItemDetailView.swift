@@ -36,6 +36,14 @@ struct ItemDetailView: View {
         item.isContact || item.folder?.name == "Contacts"
     }
 
+    /// This item is a card — show the card fields + Present-to-cashier.
+    private var isCardItem: Bool {
+        item.isCard || item.folder?.template == .cards
+    }
+    #if os(iOS)
+    @State private var showPresentCard = false
+    #endif
+
     /// Wraps the temp .vcf URL so it can drive `.sheet(item:)`.
     private struct ShareableFile: Identifiable {
         let id = UUID()
@@ -60,8 +68,9 @@ struct ItemDetailView: View {
                     .font(.system(size: 24, weight: .bold))
                     .textFieldStyle(.plain)
 
-                // PIN / Code — not shown for contacts (a contact has no PIN/Code).
-                if !isContactItem {
+                // PIN / Code — not shown for contacts (no PIN) or cards (the card
+                // section groups its own PIN field).
+                if !isContactItem && !isCardItem {
                     if !item.pin.isEmpty {
                         pinDisplaySection
                     }
@@ -76,12 +85,22 @@ struct ItemDetailView: View {
                     contactSection
                 }
 
+                // Card fields (number/expiry/etc.) + Present-to-cashier
+                if isCardItem {
+                    cardSection
+                }
+
                 // Image shown large in the space below Notes
                 photosSection
             }
             .padding()
         }
         .navigationTitle("")
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showPresentCard) {
+            PresentCardView(imageData: item.imageData.first)
+        }
+        #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -230,6 +249,42 @@ struct ItemDetailView: View {
                 .padding(8)
                 .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    // MARK: - Card
+
+    private var cardSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Card")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Picker("Type", selection: Binding(
+                get: { CardType(rawValue: item.cardTypeRaw) ?? .credit },
+                set: { item.cardTypeRaw = $0.rawValue }
+            )) {
+                ForEach(CardType.allCases) { Text($0.displayName).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            contactField("Card number", text: $item.cardNumber, systemImage: "creditcard")
+            contactField("Expiry", text: $item.cardExpiry, systemImage: "calendar")
+            contactField("CVV", text: $item.cardCVV, systemImage: "lock")
+            contactField("PIN", text: $item.pin, systemImage: "key")
+            contactField("Issuer / bank", text: $item.cardIssuer, systemImage: "building.columns")
+            contactField("Barcode / QR", text: $item.cardBarcode, systemImage: "barcode")
+
+            #if os(iOS)
+            if !item.imageData.isEmpty {
+                Button { showPresentCard = true } label: {
+                    Label("Present to Cashier", systemImage: "barcode.viewfinder")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 4)
+            }
+            #endif
         }
     }
 
@@ -667,3 +722,45 @@ private struct HeaderImageBanner: View {
         #endif
     }
 }
+
+#if os(iOS)
+/// Full-screen, max-brightness view of a card photo for presenting at a
+/// register (roadmap 006a). Boosts screen brightness on appear and restores it
+/// on dismiss so a scanner can read the barcode off the glass.
+private struct PresentCardView: View {
+    @Environment(\.dismiss) private var dismiss
+    let imageData: Data?
+    @State private var priorBrightness: CGFloat = UIScreen.main.brightness
+
+    var body: some View {
+        ZStack {
+            Color.white.ignoresSafeArea()
+            if let imageData, let ui = UIImage(data: imageData) {
+                Image(uiImage: ui).resizable().scaledToFit().padding()
+            }
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 34))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.gray)
+                            .padding()
+                    }
+                }
+                Spacer()
+                Text("Hold up to the scanner")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 40)
+            }
+        }
+        .onAppear {
+            priorBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 1.0
+        }
+        .onDisappear { UIScreen.main.brightness = priorBrightness }
+    }
+}
+#endif

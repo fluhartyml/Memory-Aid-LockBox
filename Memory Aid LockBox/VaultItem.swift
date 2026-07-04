@@ -45,6 +45,17 @@ final class VaultItem {
     var contactHours: String = ""
     var contactRelationship: String = ""
 
+    /// True when this item is a payment/membership/ID card (drives the card UI).
+    /// The card name is the item's `title`, the PIN reuses `pin`, and photos use
+    /// `imageData` (front then back). All defaulted for CloudKit.
+    var isCard: Bool = false
+    var cardNumber: String = ""
+    var cardExpiry: String = ""
+    var cardCVV: String = ""
+    var cardIssuer: String = ""
+    var cardTypeRaw: String = ""
+    var cardBarcode: String = ""
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {
