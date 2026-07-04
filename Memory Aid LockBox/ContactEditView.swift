@@ -119,7 +119,9 @@ struct ContactEditView: View {
                     case .camera:
                         CameraCaptureView { data in attachedImages.append(data) }
                     case .selfie:
-                        CameraCaptureView(preferFrontCamera: true) { data in
+                        // Dedicated AVCapture front-camera view — UIImagePickerController
+                        // fails to force the front camera on iOS 27 / 16-series.
+                        SelfieCaptureView { data in
                             if attachedImages.isEmpty { attachedImages.insert(data, at: 0) }
                             else { attachedImages[0] = data }
                         }
