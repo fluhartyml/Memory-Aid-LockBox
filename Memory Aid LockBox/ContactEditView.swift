@@ -28,6 +28,8 @@ struct ContactEditView: View {
     let folder: Folder
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(VaultLock.self) private var vaultLock
+    @AppStorage("autoLockMinutes") private var autoLockMinutes = 5
 
     @State private var isBusiness = false
     @State private var name = ""
@@ -41,19 +43,33 @@ struct ContactEditView: View {
     @State private var attachedImages: [Data] = []
 
     @State private var libraryItem: PhotosPickerItem?
-    @State private var showCamera = false
-    @State private var showScanner = false
-    @State private var showScannerMac = false
     @State private var isReadingContact = false
-    @State private var showContactPicker = false
 
     // Self-serve (hand-to-guest) mode
     @State private var isSelfServe = false
-    @State private var showSelfieCamera = false
     @State private var isVerifying = false
+    // After the owner's Face ID passes, we can't programmatically end Guided Access
+    // (system feature) — so we lock the vault and show an instruction screen that
+    // tells the owner to triple-click and turn it off.
+    @State private var showExitGuidedAccess = false
+    @State private var didLockOnExit = false
+
+    // A SINGLE modal channel. Multiple `.sheet(isPresented:)` modifiers stacked on
+    // one view can silently drop a sheet's result (that's why the selfie wasn't
+    // landing); `.sheet(item:)` with one enum is the reliable pattern.
+    #if os(iOS)
+    @State private var activeSheet: ContactSheet?
+    private enum ContactSheet: Int, Identifiable {
+        case scanner, camera, selfie, contactPicker
+        var id: Int { rawValue }
+    }
+    #else
+    @State private var showScannerMac = false
+    #endif
 
     private var navTitle: String {
-        isSelfServe ? "Self-Serve" : (isBusiness ? "New Business" : "New Contact")
+        if showExitGuidedAccess { return "Return to Owner" }
+        return isSelfServe ? "Self-Serve" : (isBusiness ? "New Business" : "New Contact")
     }
 
     var body: some View {
@@ -62,10 +78,10 @@ struct ContactEditView: View {
                 .navigationTitle(navTitle)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
-                .interactiveDismissDisabled(isSelfServe)
+                .interactiveDismissDisabled(isSelfServe || showExitGuidedAccess)
                 #endif
                 .toolbar {
-                    if !isSelfServe {
+                    if !isSelfServe && !showExitGuidedAccess {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") { dismiss() }.font(.system(size: 18))
                         }
@@ -75,6 +91,16 @@ struct ContactEditView: View {
                                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
+                }
+                // Pause the vault auto-lock while entering a contact — otherwise the
+                // timer fires mid-entry, ejects to the folder list, and the unsaved
+                // card is lost (critical for the hand-to-guest flow). Re-arms from
+                // now when the sheet closes.
+                .onAppear { vaultLock.unlock(forMinutes: 0) }
+                .onDisappear {
+                    // Re-arm the normal auto-lock UNLESS we deliberately locked on
+                    // the way out (return-to-owner) — otherwise we'd re-unlock it.
+                    if !didLockOnExit { vaultLock.unlock(forMinutes: autoLockMinutes) }
                 }
                 .onChange(of: libraryItem) { _, newItem in
                     guard let newItem else { return }
@@ -86,20 +112,20 @@ struct ContactEditView: View {
                     }
                 }
                 #if os(iOS)
-                .sheet(isPresented: $showCamera) {
-                    CameraCaptureView { data in attachedImages.append(data) }
-                }
-                .sheet(isPresented: $showScanner) {
-                    DocumentScannerView { pages in attachedImages.append(contentsOf: pages) }
-                }
-                .sheet(isPresented: $showSelfieCamera) {
-                    CameraCaptureView(preferFrontCamera: true) { data in
-                        if attachedImages.isEmpty { attachedImages.insert(data, at: 0) }
-                        else { attachedImages[0] = data }
+                .sheet(item: $activeSheet) { sheet in
+                    switch sheet {
+                    case .scanner:
+                        DocumentScannerView { pages in attachedImages.append(contentsOf: pages) }
+                    case .camera:
+                        CameraCaptureView { data in attachedImages.append(data) }
+                    case .selfie:
+                        CameraCaptureView(preferFrontCamera: true) { data in
+                            if attachedImages.isEmpty { attachedImages.insert(data, at: 0) }
+                            else { attachedImages[0] = data }
+                        }
+                    case .contactPicker:
+                        ContactPickerView { importContact($0) }
                     }
-                }
-                .sheet(isPresented: $showContactPicker) {
-                    ContactPickerView { importContact($0) }
                 }
                 #else
                 .sheet(isPresented: $showScannerMac) {
@@ -112,7 +138,9 @@ struct ContactEditView: View {
     @ViewBuilder
     private var content: some View {
         #if os(iOS)
-        if isSelfServe { selfServeIntake } else { normalForm }
+        if showExitGuidedAccess { exitGuidedAccessScreen }
+        else if isSelfServe { selfServeIntake }
+        else { normalForm }
         #else
         normalForm
         #endif
@@ -125,7 +153,7 @@ struct ContactEditView: View {
             #if os(iOS)
             Section {
                 Button {
-                    showContactPicker = true
+                    activeSheet = .contactPicker
                 } label: {
                     Label("Import from Apple Contacts", systemImage: "person.crop.circle.badge.plus")
                         .font(.system(size: 18))
@@ -185,11 +213,11 @@ struct ContactEditView: View {
             }
 
             Section {
-                captureButtons
                 if !attachedImages.isEmpty {
-                    fillFromImageButton
                     imageArea
+                    fillFromImageButton
                 }
+                captureButtons
             } header: {
                 Text(isBusiness ? "Logo / Card" : "Photo / Card").font(.system(size: 16))
             } footer: {
@@ -210,8 +238,8 @@ struct ContactEditView: View {
     private var captureButtons: some View {
         HStack(spacing: 28) {
             #if os(iOS)
-            captureButton("Scan", systemImage: "doc.viewfinder") { showScanner = true }
-            captureButton("Camera", systemImage: "camera") { showCamera = true }
+            captureButton("Scan", systemImage: "doc.viewfinder") { activeSheet = .scanner }
+            captureButton("Camera", systemImage: "camera") { activeSheet = .camera }
             #else
             captureButton("Scan", systemImage: "scanner") { showScannerMac = true }
             #endif
@@ -456,7 +484,7 @@ struct ContactEditView: View {
                     .overlay(Image(systemName: "person.fill").font(.system(size: 64)).foregroundStyle(.secondary))
             }
             Button {
-                showSelfieCamera = true
+                activeSheet = .selfie
             } label: {
                 Label(attachedImages.isEmpty ? "Take Selfie" : "Retake Selfie", systemImage: "camera")
                     .font(.system(size: 16, weight: .semibold))
@@ -480,17 +508,70 @@ struct ContactEditView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    /// Owner takes the phone back: a Face ID challenge exits self-serve mode and
-    /// returns to the normal form (with the guest's info filled in for review).
+    /// Owner takes the phone back: a Face ID challenge exits self-serve and, if the
+    /// guest entered a name, auto-saves the card immediately (a successful scan
+    /// commits it — nothing lost if Save isn't tapped). The app can't end Guided
+    /// Access itself, so it hands off to the exit-instruction screen.
     private func returnToOwner() {
         Task {
             isVerifying = true
             let ok = await BiometricAuthenticator.authenticate(reason: "Return control to the owner")
             isVerifying = false
-            if ok {
-                isBusiness = false
-                isSelfServe = false
+            guard ok else { return }
+            isBusiness = false
+            isSelfServe = false
+            if !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                persist()
             }
+            showExitGuidedAccess = true
+        }
+    }
+
+    /// Shown after the owner authenticates: the vault stays on-screen with a saved
+    /// card, and the owner is told to physically turn off Guided Access. Tapping
+    /// Done locks the vault and dismisses back to the (locked) folder list.
+    private var exitGuidedAccessScreen: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 72)).foregroundStyle(.tint)
+            Text("Contact Saved").font(.system(size: 28, weight: .bold))
+            VStack(alignment: .leading, spacing: 16) {
+                exitStep(1, "Triple-click the side button", systemImage: "s.circle")
+                exitStep(2, "Tap “End”, then enter your Guided Access passcode", systemImage: "lock.open")
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            Text("This turns off Guided Access so only you can use the rest of the phone.")
+                .font(.system(size: 15)).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+            Button {
+                didLockOnExit = true
+                vaultLock.lockNow()
+                dismiss()
+            } label: {
+                Text("Done — Lock the Vault")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(24)
+    }
+
+    private func exitStep(_ number: Int, _ text: String, systemImage: String) -> some View {
+        HStack(spacing: 14) {
+            Text("\(number)")
+                .font(.system(size: 20, weight: .bold))
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.accentColor.opacity(0.15)))
+                .foregroundStyle(Color.accentColor)
+            Text(text).font(.system(size: 17))
+            Spacer(minLength: 0)
+            Image(systemName: systemImage).font(.system(size: 20)).foregroundStyle(.secondary)
         }
     }
     #endif
@@ -498,6 +579,13 @@ struct ContactEditView: View {
     // MARK: - Save
 
     private func save() {
+        persist()
+        dismiss()
+    }
+
+    /// Insert the card into the vault without dismissing (return-to-owner needs to
+    /// save, then show the Guided-Access exit screen rather than close).
+    private func persist() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         let item = VaultItem(title: trimmed.isEmpty ? "Untitled" : trimmed, notes: notes, folder: folder)
         item.isContact = true
@@ -510,6 +598,5 @@ struct ContactEditView: View {
         item.contactRelationship = isBusiness ? "" : relationship
         item.imageData = attachedImages
         modelContext.insert(item)
-        dismiss()
     }
 }
