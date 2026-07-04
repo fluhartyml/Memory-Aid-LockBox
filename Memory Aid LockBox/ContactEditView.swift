@@ -16,6 +16,9 @@ import PhotosUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(iOS)
+import Contacts
+#endif
 
 struct ContactEditView: View {
     let folder: Folder
@@ -38,10 +41,25 @@ struct ContactEditView: View {
     @State private var showScanner = false
     @State private var showScannerMac = false
     @State private var isReadingContact = false
+    @State private var showContactPicker = false
 
     var body: some View {
         NavigationStack {
             Form {
+                #if os(iOS)
+                Section {
+                    Button {
+                        showContactPicker = true
+                    } label: {
+                        Label("Import from Apple Contacts", systemImage: "person.crop.circle.badge.plus")
+                            .font(.system(size: 18))
+                    }
+                } footer: {
+                    Text("Start from scratch below, or pull one of your Apple Contacts in — including their photo.")
+                        .font(.system(size: 13))
+                }
+                #endif
+
                 Section {
                     Picker("Type", selection: $isBusiness) {
                         Text("Person").tag(false)
@@ -135,6 +153,11 @@ struct ContactEditView: View {
             #else
             .sheet(isPresented: $showScannerMac) {
                 ScannerSheet { pages in attachedImages.append(contentsOf: pages) }
+            }
+            #endif
+            #if os(iOS)
+            .sheet(isPresented: $showContactPicker) {
+                ContactPickerView { importContact($0) }
             }
             #endif
         }
@@ -280,6 +303,49 @@ struct ContactEditView: View {
         if email.isEmpty, !e.isEmpty { email = e }
         if address.isEmpty, !a.isEmpty { address = a }
     }
+
+    // MARK: - Import from Apple Contacts
+
+    #if os(iOS)
+    /// Pull a picked Apple Contact into the fields (+ its photo). Auto-selects the
+    /// Business toggle when the contact is a company (organization, no person name).
+    /// Every property is guarded with `isKeyAvailable` so an un-fetched key can
+    /// never throw.
+    private func importContact(_ c: CNContact) {
+        let org = c.isKeyAvailable(CNContactOrganizationNameKey)
+            ? c.organizationName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        var full = ""
+        if c.areKeysAvailable([CNContactFormatter.descriptorForRequiredKeys(for: .fullName)]) {
+            full = CNContactFormatter.string(from: c, style: .fullName) ?? ""
+        }
+        if full.isEmpty, !org.isEmpty {
+            isBusiness = true
+            name = org
+        } else {
+            isBusiness = false
+            name = full.isEmpty ? org : full
+        }
+        if c.isKeyAvailable(CNContactPhoneNumbersKey), let p = c.phoneNumbers.first {
+            phone = p.value.stringValue
+        }
+        if c.isKeyAvailable(CNContactEmailAddressesKey), let e = c.emailAddresses.first {
+            email = e.value as String
+        }
+        if c.isKeyAvailable(CNContactPostalAddressesKey), let postal = c.postalAddresses.first?.value {
+            address = CNPostalAddressFormatter.string(from: postal, style: .mailingAddress)
+                .replacingOccurrences(of: "\n", with: ", ")
+        }
+        if c.isKeyAvailable(CNContactUrlAddressesKey), let url = c.urlAddresses.first {
+            website = url.value as String
+        }
+        // Pull the contact's photo in as the first attachment (becomes the header).
+        if c.isKeyAvailable(CNContactImageDataKey), let img = c.imageData {
+            attachedImages.insert(img, at: 0)
+        } else if c.isKeyAvailable(CNContactThumbnailImageDataKey), let thumb = c.thumbnailImageData {
+            attachedImages.insert(thumb, at: 0)
+        }
+    }
+    #endif
 
     // MARK: - Save
 

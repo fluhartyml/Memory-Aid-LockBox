@@ -94,6 +94,31 @@ struct AddToContactsView: UIViewControllerRepresentable {
         }
     }
 }
+/// Presents the system contact picker so the user can pull one of their own
+/// Apple Contacts INTO the vault. Needs no Contacts permission — the picker runs
+/// out of process and hands back only the single contact the user taps.
+struct ContactPickerView: UIViewControllerRepresentable {
+    var onPick: (CNContact) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: CNContactPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let onPick: (CNContact) -> Void
+        init(onPick: @escaping (CNContact) -> Void) { self.onPick = onPick }
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            onPick(contact)
+        }
+    }
+}
+
 // ShareActivityView (UIActivityViewController wrapper) already lives in
 // ImageViewerView.swift — reused here for the vCard share sheet.
 #endif
