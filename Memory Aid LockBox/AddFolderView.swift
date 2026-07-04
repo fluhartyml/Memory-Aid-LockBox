@@ -35,6 +35,7 @@ struct AddFolderView: View {
                             Text(template.displayName).tag(template)
                         }
                     }
+                    .labelsHidden()
                     .font(.system(size: 18))
                 } header: {
                     Text("Template")
