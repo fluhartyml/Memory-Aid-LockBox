@@ -13,7 +13,8 @@ struct AddFolderView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Folder.sortOrder) private var existingFolders: [Folder]
     @State private var name = ""
-    @State private var selectedIcon = "folder.fill"
+    @State private var selectedIcon = "note.text"
+    @State private var selectedTemplate: FolderTemplate = .customNotes
 
     let iconOptions = [
         "folder.fill", "creditcard.fill", "lock.fill",
@@ -28,6 +29,21 @@ struct AddFolderView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Template", selection: $selectedTemplate) {
+                        ForEach(FolderTemplate.pickerChoices) { template in
+                            Text(template.displayName).tag(template)
+                        }
+                    }
+                    .font(.system(size: 18))
+                } header: {
+                    Text("Template")
+                        .font(.system(size: 16))
+                } footer: {
+                    Text("Chooses the entry sheet this folder uses. Custom / Notes is the flexible catch-all.")
+                        .font(.system(size: 13))
+                }
+
                 Section {
                     TextField("Folder name", text: $name)
                         .font(.system(size: 18))
@@ -61,6 +77,10 @@ struct AddFolderView: View {
             .frame(minWidth: 420, minHeight: 480)
             #endif
             .navigationTitle("New Folder")
+            .onChange(of: selectedTemplate) { _, newTemplate in
+                // Suggest the template's icon; the user can still override it below.
+                selectedIcon = newTemplate.defaultIcon
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -71,7 +91,8 @@ struct AddFolderView: View {
                         let folder = Folder(
                             name: name.isEmpty ? "Untitled" : name,
                             iconName: selectedIcon,
-                            sortOrder: existingFolders.count
+                            sortOrder: existingFolders.count,
+                            template: selectedTemplate
                         )
                         modelContext.insert(folder)
                         dismiss()

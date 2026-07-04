@@ -36,9 +36,8 @@ struct ItemListView: View {
         }
     }
 
-    var isCardFolder: Bool { folder.name == "Cards" }
-    var isPhotoFolder: Bool { folder.name == "Photos" }
-    var isContactFolder: Bool { folder.name == "Contacts" }
+    // Dispatch by the folder's TEMPLATE, not its name (roadmap 001/002).
+    var isContactFolder: Bool { folder.template == .contacts }
 
     var body: some View {
         List(selection: $selectedItem) {
@@ -134,14 +133,15 @@ struct ItemListView: View {
     }
 
     private func addTapped() {
-        // Cards now open the New Item sheet (with Scan/Camera/Library on it) on
-        // both platforms, instead of jumping straight into the scanner.
-        if isPhotoFolder {
-            showPhotoPicker = true
-        } else if isContactFolder {
-            showAddContact = true
-        } else {
-            showAddItem = true
+        // Route the "+" by folder template. Only Contacts has a specialized
+        // create sheet so far; every other template still opens the generic
+        // AddItemView (with Scan/Camera/Library on it) until its own sheet is
+        // built. Photos never reaches here — ContentView routes it to the media
+        // library — but it's handled for completeness.
+        switch folder.template {
+        case .contacts: showAddContact = true
+        case .photos:   showPhotoPicker = true
+        default:        showAddItem = true
         }
     }
 

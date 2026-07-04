@@ -150,7 +150,7 @@ struct VaultTabView: View {
                 LockedFolderView(folder: folder) {
                     vaultLock.unlock(forMinutes: autoLockMinutes)
                 }
-            } else if folder.name == "Photos" {
+            } else if folder.template == .photos {
                 MediaLibraryView(folder: folder)
             } else {
                 ItemListView(

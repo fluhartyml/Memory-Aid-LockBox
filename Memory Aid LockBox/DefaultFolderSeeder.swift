@@ -59,20 +59,19 @@ final class DefaultFolderSeeder {
     }
 
     private func seedDefaults(_ context: ModelContext) {
-        let defaults: [(String, String, Int)] = [
-            ("Cards", "creditcard.fill", 0),
-            ("Codes / Accounts", "lock.fill", 1),
-            ("Photos", "photo.fill", 2),
-            ("Notes", "note.text", 3),
-            // A journal is just a notes-style folder (item list), so it needs no
-            // special handling — only "Photos"/"Cards" are special-cased.
-            ("Journal", "book.closed.fill", 4),
-            // Secure contact cards live here (item detail shows contact fields +
-            // Share / Add-to-Contacts).
-            ("Contacts", "person.crop.circle.fill", 5),
+        // Roadmap 015/016: the 7 fresh-vault starter folders, each carrying its
+        // specialized template so its entry sheet is chosen by type, not name.
+        let defaults: [(String, FolderTemplate, Int)] = [
+            ("Cards", .cards, 0),
+            ("Codes / Accounts", .codesAccounts, 1),
+            ("Photos", .photos, 2),
+            ("Notes", .customNotes, 3),
+            ("Journal", .journal, 4),
+            ("Contacts", .contacts, 5),
+            ("Receipts", .receipts, 6),
         ]
-        for (name, icon, order) in defaults {
-            context.insert(Folder(name: name, iconName: icon, sortOrder: order))
+        for (name, template, order) in defaults {
+            context.insert(Folder(name: name, iconName: template.defaultIcon, sortOrder: order, template: template))
         }
         try? context.save()
         print("🌱 [LockBox] Cloud was blank — seeded \(defaults.count) starter folders.")
