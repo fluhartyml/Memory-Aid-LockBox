@@ -47,6 +47,9 @@ struct ContactEditView: View {
 
     @State private var libraryItem: PhotosPickerItem?
     @State private var isReadingContact = false
+    // Set when "Fill from image" launches the scanner, so the scan's result is
+    // OCR'd and used to fill fields as soon as it comes back.
+    @State private var pendingFillAfterScan = false
 
     // Self-serve (hand-to-guest) mode
     @State private var isSelfServe = false
@@ -118,7 +121,13 @@ struct ContactEditView: View {
                 .sheet(item: $activeSheet) { sheet in
                     switch sheet {
                     case .scanner:
-                        DocumentScannerView { pages in attachedImages.append(contentsOf: pages) }
+                        DocumentScannerView { pages in
+                            attachedImages.append(contentsOf: pages)
+                            if pendingFillAfterScan {
+                                pendingFillAfterScan = false
+                                if let scanned = pages.first { fillFromImage(from: scanned) }
+                            }
+                        }
                     case .camera:
                         CameraCaptureView { data in attachedImages.append(data) }
                     case .selfie:
@@ -135,7 +144,13 @@ struct ContactEditView: View {
                 }
                 #else
                 .sheet(isPresented: $showScannerMac) {
-                    ScannerSheet { pages in attachedImages.append(contentsOf: pages) }
+                    ScannerSheet { pages in
+                        attachedImages.append(contentsOf: pages)
+                        if pendingFillAfterScan {
+                            pendingFillAfterScan = false
+                            if let scanned = pages.first { fillFromImage(from: scanned) }
+                        }
+                    }
                 }
                 #endif
         }
@@ -221,16 +236,14 @@ struct ContactEditView: View {
             Section {
                 if !attachedImages.isEmpty {
                     imageArea
-                    fillFromImageButton
                 }
+                fillFromImageButton
                 captureButtons
             } header: {
                 Text(isBusiness ? "Logo / Card" : "Photo / Card").font(.system(size: 16))
             } footer: {
-                if !attachedImages.isEmpty {
-                    Text("\"Fill from image\" reads a business card with on-device text recognition and fills any empty fields.")
-                        .font(.system(size: 13))
-                }
+                Text("\"Fill from image\" scans a card and fills any empty fields with on-device text recognition.")
+                    .font(.system(size: 13))
             }
         }
         #if os(macOS)
@@ -308,7 +321,15 @@ struct ContactEditView: View {
     // MARK: - Fill from image (on-device OCR)
 
     private var fillFromImageButton: some View {
-        Button { fillFromImage() } label: {
+        Button {
+            // Open the scanner; when the scan returns, OCR it and fill (below).
+            pendingFillAfterScan = true
+            #if os(iOS)
+            activeSheet = .scanner
+            #else
+            showScannerMac = true
+            #endif
+        } label: {
             HStack(spacing: 8) {
                 if isReadingContact { ProgressView() }
                 else { Image(systemName: "text.viewfinder").font(.system(size: 18)) }
@@ -352,8 +373,8 @@ struct ContactEditView: View {
     }
 
     /// Read the first attached image with on-device OCR and fill any EMPTY fields.
-    private func fillFromImage() {
-        guard let first = attachedImages.first else { return }
+    private func fillFromImage(from image: Data? = nil) {
+        guard let first = image ?? attachedImages.first else { return }
         Task {
             isReadingContact = true
             defer { isReadingContact = false }
