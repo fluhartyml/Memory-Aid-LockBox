@@ -24,6 +24,7 @@ struct Memory_Aid_LockBoxApp: App {
             Folder.self,
             VaultItem.self,
             MediaAsset.self,
+            VaultMetadata.self,
         ])
         // Sync across the user's devices via CloudKit, using the container
         // declared in the entitlement (iCloud.com.nightgard.Memory-Aid-LockBox).

@@ -70,16 +70,27 @@ final class DefaultFolderSeeder {
             installDedupOnImport(container: container)
         }
 
-        if storeIsEmpty(context) {
-            // The local store is empty. If CloudKit is on, its initial import
-            // may not have arrived yet — wait for it to finish, then re-check.
-            if cloudKitAvailable {
-                await waitForInitialCloudImport()
-            }
+        // Wait for the initial import so the seed-once marker AND any existing
+        // folders can arrive before we decide whether this vault was ever set up.
+        if cloudKitAvailable {
+            await waitForInitialCloudImport()
+        }
+
+        // Seed EXACTLY ONCE in the life of a vault — keyed on a persistent,
+        // CloudKit-synced marker (VaultMetadata), NOT on the store being
+        // momentarily empty. This is what lets the user delete every folder and
+        // have the vault STAY empty: an emptied vault still carries its marker,
+        // so it is never reseeded on the next launch.
+        if !hasBeenSeeded(context) {
             if storeIsEmpty(context) {
-                // Genuinely blank -> create the starter folders.
+                // Genuinely never set up -> create the starter folders.
                 seedDefaults(context)
             }
+            // Either we just seeded a blank vault, or this is an existing
+            // pre-marker vault (folders already present) that we adopt without
+            // seeding. Record the marker so the vault is never reseeded again —
+            // including after the user later empties it.
+            markSeeded(context)
         }
 
         // Immediate pass: collapses duplicates already present (e.g. a set left
@@ -104,6 +115,25 @@ final class DefaultFolderSeeder {
         }
         try? context.save()
         print("🌱 [LockBox] Cloud was blank — seeded \(Self.starterDefaults.count) starter folders.")
+    }
+
+    // MARK: - Seed-once marker
+
+    /// True once this vault has ever been set up. Presence of ANY VaultMetadata
+    /// marker means "already seeded" — so a vault the user emptied still reports
+    /// seeded and is never repopulated.
+    private func hasBeenSeeded(_ context: ModelContext) -> Bool {
+        let count = (try? context.fetchCount(FetchDescriptor<VaultMetadata>())) ?? 0
+        return count > 0
+    }
+
+    /// Record the vault as set-up, exactly once. Called only when no marker
+    /// exists yet — either right after a genuine first-run seed, or when adopting
+    /// an existing pre-marker vault (folders already present, don't seed).
+    private func markSeeded(_ context: ModelContext) {
+        context.insert(VaultMetadata(hasSeededDefaults: true))
+        try? context.save()
+        print("🔖 [LockBox] Recorded vault as set-up (seed-once marker).")
     }
 
     // MARK: - Self-healing dedup
