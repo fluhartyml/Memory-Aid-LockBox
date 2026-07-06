@@ -12,6 +12,12 @@
 	<string>Memory Aid LockBox needs photo library access to attach images to vault items and to export your vault media back to Apple Photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Memory Aid LockBox needs full Photos access to move photos and videos into your vault and remove the originals from Apple Photos.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Memory Aid LockBox adds your appointments and significant dates to Apple Calendar.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Memory Aid LockBox adds appointment prep, follow-ups, and receipt grocery lists to Apple Reminders.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Memory Aid LockBox adds your appointments and significant dates to Apple Calendar.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

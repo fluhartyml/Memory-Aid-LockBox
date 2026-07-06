@@ -19,5 +19,10 @@
 	     iOS ignores this sandbox key and uses the NSPhotoLibrary usage prompts. -->
 	<key>com.apple.security.personal-information.photos-library</key>
 	<true/>
+	<!-- macOS App Sandbox: Calendar + Reminders access (EventKit), required to
+	     add appointments, significant dates, and receipt grocery lists on the Mac
+	     build. iOS ignores this and uses the NSCalendars/NSReminders prompts. -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
 </dict>
 </plist>

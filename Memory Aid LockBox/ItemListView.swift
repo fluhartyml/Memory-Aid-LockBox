@@ -20,6 +20,7 @@ struct ItemListView: View {
     @State private var showAddCard = false
     @State private var showAddCodes = false
     @State private var showAddJournal = false
+    @State private var showAddAppt = false
     @State private var exportFile: ExportFile?
 
     private struct ExportFile: Identifiable {
@@ -150,6 +151,15 @@ struct ItemListView: View {
         }
         #endif
         #if os(iOS)
+        .fullScreenCover(isPresented: $showAddAppt) {
+            AppointmentEditView(folder: folder)
+        }
+        #else
+        .sheet(isPresented: $showAddAppt) {
+            AppointmentEditView(folder: folder)
+        }
+        #endif
+        #if os(iOS)
         .sheet(item: $exportFile) { file in
             FileShareSheet(urls: [file.url])
         }
@@ -206,6 +216,7 @@ struct ItemListView: View {
         case .cards:         showAddCard = true
         case .codesAccounts: showAddCodes = true
         case .journal:       showAddJournal = true
+        case .appointments:  showAddAppt = true
         case .photos:        showPhotoPicker = true
         case .customNotes:   showAddItem = true
         default:             showAddItem = true

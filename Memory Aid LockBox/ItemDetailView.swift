@@ -48,6 +48,12 @@ struct ItemDetailView: View {
     private var isJournalItem: Bool {
         item.isJournal || item.folder?.template == .journal
     }
+
+    private var isApptItem: Bool {
+        item.isAppointment || item.folder?.template == .appointments
+    }
+
+    @State private var apptStatus: String?
     #if os(iOS)
     @State private var showPresentCard = false
     #endif
@@ -78,7 +84,7 @@ struct ItemDetailView: View {
 
                 // PIN / Code — not shown for contacts (no PIN) or cards (the card
                 // section groups its own PIN field).
-                if !isContactItem && !isCardItem && !isCodesItem && !isJournalItem {
+                if !isContactItem && !isCardItem && !isCodesItem && !isJournalItem && !isApptItem {
                     if !item.pin.isEmpty {
                         pinDisplaySection
                     }
@@ -88,6 +94,11 @@ struct ItemDetailView: View {
                 // Journal entry date — editable, drives the timeline placement.
                 if isJournalItem {
                     journalSection
+                }
+
+                // Appointment fields + Add to Calendar / Reminders.
+                if isApptItem {
+                    appointmentSection
                 }
 
                 // Login/credential fields (username/password/website) — above
@@ -311,6 +322,69 @@ struct ItemDetailView: View {
         if isCodesItem { return "Notes / 2FA" }
         if isJournalItem { return "Body" }
         return "Notes"
+    }
+
+    // MARK: - Appointment
+
+    private var appointmentSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Appointment")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            contactField("Provider", text: $item.apptProvider, systemImage: "person")
+            DatePicker("Date & time", selection: $item.apptDate)
+                .font(.system(size: 17))
+            contactField("Prep / instructions", text: $item.apptPrep, systemImage: "list.clipboard")
+            contactField("Address", text: $item.apptAddress, systemImage: "mappin.and.ellipse")
+            contactField("Phone", text: $item.apptPhone, systemImage: "phone")
+
+            HStack(spacing: 12) {
+                Button {
+                    Task { await addAppointment(toReminders: false) }
+                } label: {
+                    Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    Task { await addAppointment(toReminders: true) }
+                } label: {
+                    Label("Add to Reminders", systemImage: "checklist")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.top, 4)
+
+            if let apptStatus {
+                Text(apptStatus)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func addAppointment(toReminders: Bool) async {
+        let title = item.title.isEmpty ? "Appointment" : item.title
+        var notes = item.notes
+        if !item.apptProvider.isEmpty { notes = "With \(item.apptProvider)\n\(notes)" }
+        if !item.apptPhone.isEmpty { notes += "\n\(item.apptPhone)" }
+
+        let ok: Bool
+        if toReminders {
+            ok = await EventKitService.addReminder(
+                title: title, due: item.apptDate,
+                notes: item.apptPrep.isEmpty ? notes : "Prep: \(item.apptPrep)\n\(notes)")
+        } else {
+            ok = await EventKitService.addEvent(
+                title: title, date: item.apptDate, notes: notes,
+                location: item.apptAddress, prep: item.apptPrep)
+        }
+        apptStatus = ok
+            ? (toReminders ? "Added to Reminders." : "Added to Calendar.")
+            : "Couldn't add — check Calendar/Reminders access in Settings."
     }
 
     // MARK: - Journal

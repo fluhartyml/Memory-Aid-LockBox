@@ -73,6 +73,17 @@ final class VaultItem {
     var isJournal: Bool = false
     var journalDate: Date = Date()
 
+    /// True when this item is an Appointment (roadmap 018). The practice/office
+    /// name is the item's `title`; `apptDate` holds date+time; the card photo is
+    /// `imageData`; free-form `notes` stays. "Add to Calendar/Reminders" (019)
+    /// reads these. All defaulted for CloudKit.
+    var isAppointment: Bool = false
+    var apptProvider: String = ""
+    var apptDate: Date = Date()
+    var apptPrep: String = ""
+    var apptAddress: String = ""
+    var apptPhone: String = ""
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {
