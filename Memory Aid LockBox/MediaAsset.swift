@@ -27,6 +27,11 @@ final class MediaAsset {
     /// Video length in seconds; 0 for photos.
     var durationSeconds: Double = 0
 
+    /// Per-item Title + Notes (roadmap 014c), editable in the media details.
+    /// Additive/defaulted for CloudKit; independent of the media's own metadata.
+    var title: String = ""
+    var notes: String = ""
+
     /// The full-resolution media bytes, stored as an external file by SwiftData.
     @Attribute(.externalStorage)
     var data: Data?

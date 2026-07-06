@@ -14,6 +14,7 @@ import UIKit
 struct MediaViewerView: View {
     let asset: MediaAsset
     @Environment(\.dismiss) private var dismiss
+    @State private var showDetails = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,14 @@ struct MediaViewerView: View {
                     Button("Done") { dismiss() }
                         .font(.system(size: 18))
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showDetails = true } label: {
+                        Label("Details", systemImage: "info.circle")
+                    }
+                }
+            }
+            .sheet(isPresented: $showDetails) {
+                MediaDetailsView(asset: asset)
             }
             #if os(iOS)
             .toolbarBackground(.black, for: .navigationBar)
