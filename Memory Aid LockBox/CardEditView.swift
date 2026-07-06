@@ -62,8 +62,16 @@ struct CardEditView: View {
             Form {
                 Section {
                     TextField("Card name", text: $name).font(.system(size: 18))
-                    Picker("Type", selection: $type) {
-                        ForEach(CardType.allCases) { Text($0.displayName).tag($0) }
+                    // Group the label with its value at the leading edge; the default
+                    // Picker row spreads them to opposite edges, which reads as broken
+                    // on a wide iPad row.
+                    HStack(spacing: 12) {
+                        Text("Type")
+                        Picker("Type", selection: $type) {
+                            ForEach(CardType.allCases) { Text($0.displayName).tag($0) }
+                        }
+                        .labelsHidden()
+                        Spacer()
                     }
                     .font(.system(size: 18))
                 } header: {
