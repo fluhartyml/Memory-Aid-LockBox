@@ -28,7 +28,9 @@ struct MediaDetailsForm: View {
     var mode: Mode = .all
 
     @State private var captureDate = Date()
-    @State private var hasDate = false
+    @State private var dateEdited = false   // true once the user actually changes it
+    @State private var didLoad = false
+    @State private var hasLocation = false
     @State private var sections: [MetadataService.Section] = []
     // What's currently embedded, so the file is only rewritten when something changed.
     @State private var loadedTitle = ""
@@ -75,12 +77,28 @@ struct MediaDetailsForm: View {
                 }
 
                 Section {
-                    Toggle("Set capture date", isOn: $hasDate).font(.system(size: 16))
-                    if hasDate {
-                        DatePicker("Captured", selection: $captureDate).font(.system(size: 16))
-                    }
+                    DatePicker("Captured", selection: $captureDate).font(.system(size: 16))
                 } header: {
                     Text("Photo date").font(.system(size: 15))
+                } footer: {
+                    Text("The photo's own capture date — edit it and it saves into the file.")
+                        .font(.system(size: 12))
+                }
+
+                if hasLocation {
+                    Section {
+                        Button(role: .destructive) {
+                            removeLocation()
+                        } label: {
+                            Label("Remove location from photo", systemImage: "location.slash")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                    } header: {
+                        Text("Location").font(.system(size: 15))
+                    } footer: {
+                        Text("Strips the GPS coordinates from this photo's metadata.")
+                            .font(.system(size: 12))
+                    }
                 }
 
                 ForEach(sections) { section in
@@ -108,6 +126,11 @@ struct MediaDetailsForm: View {
         #if os(macOS)
         .formStyle(.grouped)
         #endif
+        .onChange(of: captureDate) { _, _ in
+            // Only counts as an edit after the initial load-set, so an untouched
+            // photo never gets a fabricated date stamped on close.
+            if didLoad { dateEdited = true }
+        }
         .onAppear(perform: load)
         .onDisappear(perform: embedIfChanged)
     }
@@ -120,19 +143,22 @@ struct MediaDetailsForm: View {
         if asset.title.isEmpty { asset.title = f.title }
         if asset.caption.isEmpty { asset.caption = f.caption }
         if asset.notes.isEmpty { asset.notes = f.body }
-        if let d = f.date { captureDate = d; hasDate = true }
+        if let d = f.date { captureDate = d }
+        hasLocation = MetadataService.hasGPS(in: data)
         sections = MetadataService.sections(from: data)
+        didLoad = true
     }
 
     /// On close, write the three tiers + date into the photo — but only if the
     /// user actually changed something, so we don't rewrite the file for nothing.
     private func embedIfChanged() {
         guard isPhoto, let data = asset.data else { return }
-        let newDate = hasDate ? captureDate : nil
+        // nil date = leave the file's date untouched (only write it if edited).
+        let newDate: Date? = dateEdited ? captureDate : nil
         let changed = asset.title != loadedTitle
             || asset.caption != loadedCaption
             || asset.notes != loadedBody
-            || newDate != loadedDate
+            || (dateEdited && captureDate != loadedDate)
         guard changed else { return }
         if let newData = MetadataService.edit(data: data,
                                               title: asset.title,
@@ -141,8 +167,16 @@ struct MediaDetailsForm: View {
                                               date: newDate) {
             asset.data = newData
             loadedTitle = asset.title; loadedCaption = asset.caption
-            loadedBody = asset.notes; loadedDate = newDate
+            loadedBody = asset.notes
+            if dateEdited { loadedDate = captureDate }
         }
+    }
+
+    private func removeLocation() {
+        guard let data = asset.data, let stripped = MetadataService.removingGPS(from: data) else { return }
+        asset.data = stripped
+        sections = MetadataService.sections(from: stripped)
+        hasLocation = false
     }
 }
 

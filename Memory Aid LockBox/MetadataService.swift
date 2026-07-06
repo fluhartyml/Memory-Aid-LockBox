@@ -139,6 +139,30 @@ enum MetadataService {
         return out as Data
     }
 
+    /// Whether the image carries GPS coordinates.
+    static func hasGPS(in data: Data) -> Bool {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [String: Any]
+        else { return false }
+        return (props[kCGImagePropertyGPSDictionary as String] as? [String: Any])?.isEmpty == false
+    }
+
+    /// Strip the GPS block from the image (privacy), preserving every other tag.
+    /// Setting the GPS dictionary to kCFNull removes it on write. Returns new
+    /// bytes, or nil if the data isn't an editable image.
+    static func removingGPS(from data: Data) -> Data? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let type = CGImageSourceGetType(src)
+        else { return nil }
+        var props = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [String: Any]) ?? [:]
+        props[kCGImagePropertyGPSDictionary as String] = kCFNull
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out, type, 1, nil) else { return nil }
+        CGImageDestinationAddImageFromSource(dest, src, 0, props as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return out as Data
+    }
+
     // MARK: - Formatting
 
     private static func prettify(_ key: String) -> String {
