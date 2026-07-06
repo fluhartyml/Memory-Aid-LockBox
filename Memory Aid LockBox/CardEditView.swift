@@ -62,6 +62,17 @@ struct CardEditView: View {
         NavigationStack {
             Form {
                 Section {
+                    if !attachedImages.isEmpty { imageArea }
+                    scanCardButton
+                    addPhotoButtons
+                } header: {
+                    Text("Card Photos").font(.system(size: 16))
+                } footer: {
+                    Text("Scan Card reads both sides on-device and fills the number, expiry, and security codes for you. Or add a photo manually. Verify the fields — small or embossed print scans imperfectly.")
+                        .font(.system(size: 13))
+                }
+
+                Section {
                     TextField("Card name", text: $name).font(.system(size: 18))
                     // Group the label with its value at the leading edge; the default
                     // Picker row spreads them to opposite edges, which reads as broken
@@ -97,17 +108,6 @@ struct CardEditView: View {
                         .frame(minHeight: 80)
                 } header: {
                     Text("Notes").font(.system(size: 16))
-                }
-
-                Section {
-                    if !attachedImages.isEmpty { imageArea }
-                    scanCardButton
-                    addPhotoButtons
-                } header: {
-                    Text("Card Photos").font(.system(size: 16))
-                } footer: {
-                    Text("Scan Card reads both sides on-device and fills the number, expiry, and security codes for you. Or add a photo manually. Verify the fields — small or embossed print scans imperfectly.")
-                        .font(.system(size: 13))
                 }
             }
             #if os(macOS)
@@ -197,12 +197,12 @@ struct CardEditView: View {
         #if canImport(UIKit)
         if let ui = UIImage(data: attachedImages[index]) {
             Image(uiImage: ui).resizable().scaledToFill()
-                .frame(width: 96, height: 60).clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 220, height: 139).clipShape(RoundedRectangle(cornerRadius: 10))
         }
         #else
         if let ns = NSImage(data: attachedImages[index]) {
             Image(nsImage: ns).resizable().scaledToFill()
-                .frame(width: 96, height: 60).clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 220, height: 139).clipShape(RoundedRectangle(cornerRadius: 10))
         }
         #endif
     }
@@ -286,9 +286,23 @@ struct CardEditView: View {
             guard !recognized.isEmpty else { return }
             let text = recognized.map(\.fullText).joined(separator: "\n")
 
-            if name.isEmpty, let suggested = recognized.compactMap(\.suggestedTitle).first { name = suggested }
             if number.isEmpty, let n = Self.firstCardNumber(in: text) { number = n }
             if expiry.isEmpty, let e = Self.firstExpiry(in: text) { expiry = e }
+
+            // Debit vs credit is often printed on the face; pick it up so the
+            // auto-name is right.
+            let upper = text.uppercased()
+            if upper.contains("DEBIT") { type = .debit }
+            else if upper.contains("CREDIT") { type = .credit }
+
+            // Auto-name from the card's network + type (e.g. "Visa Debit") — read
+            // from the number, not from marketing text on the card ("Activate this
+            // card today" was landing here before).
+            if name.isEmpty {
+                let network = Self.cardNetwork(forDigits: number.filter(\.isNumber))
+                let composed = [network, type.displayName].compactMap { $0 }.joined(separator: " ")
+                if !composed.isEmpty { name = composed }
+            }
 
             let numberDigits = number.filter(\.isNumber)
             // 15-digit Amex carries a 4-digit CID; only look for it on Amex so a
@@ -312,6 +326,18 @@ struct CardEditView: View {
                 return line.trimmingCharacters(in: .whitespaces)
             }
         }
+        return nil
+    }
+
+    /// The card network inferred from the leading digits (Visa/Mastercard/Amex/
+    /// Discover), used to auto-name the card. Returns nil if it doesn't match a
+    /// known prefix.
+    static func cardNetwork(forDigits d: String) -> String? {
+        if d.hasPrefix("4") { return "Visa" }
+        if d.hasPrefix("34") || d.hasPrefix("37") { return "Amex" }
+        if d.hasPrefix("6011") || d.hasPrefix("65") { return "Discover" }
+        if let two = Int(d.prefix(2)), (51...55).contains(two) { return "Mastercard" }
+        if let four = Int(d.prefix(4)), (2221...2720).contains(four) { return "Mastercard" }
         return nil
     }
 
