@@ -22,6 +22,7 @@ struct ItemDetailView: View {
     @State private var showLibraryPicker = false
     @State private var showHeaderPicker = false
     @State private var showShareSheet = false
+    @State private var showMoveCopy = false
     @State private var showCamera = false
     @State private var showScanner = false
     @State private var viewingImage: Data?
@@ -156,10 +157,27 @@ struct ItemDetailView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showShareSheet = true
+                Menu {
+                    Button {
+                        showShareSheet = true
+                    } label: {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    if isApptItem {
+                        Button {
+                            shareAppointmentICS()
+                        } label: {
+                            Label("Share as Calendar (.ics)", systemImage: "calendar")
+                        }
+                    }
+                    Divider()
+                    Button {
+                        showMoveCopy = true
+                    } label: {
+                        Label("Move or Copy…", systemImage: "folder")
+                    }
                 } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                    Label("Actions", systemImage: "square.and.arrow.up")
                 }
             }
         }
@@ -167,6 +185,9 @@ struct ItemDetailView: View {
             #if os(iOS)
             ShareSheetView(item: item)
             #endif
+        }
+        .sheet(isPresented: $showMoveCopy) {
+            MoveCopyView(item: item)
         }
         #if os(iOS)
         .sheet(isPresented: $showCamera) {
@@ -405,6 +426,43 @@ struct ItemDetailView: View {
         apptStatus = ok
             ? (toReminders ? "Added to Reminders." : "Added to Calendar.")
             : "Couldn't add — check Calendar/Reminders access in Settings."
+    }
+
+    /// Share OUT as a standard .ics (roadmap 023) — the system sheet offers both
+    /// "Add to Calendar" and AirDrop-to-a-friend from one export.
+    private func shareAppointmentICS() {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd'T'HHmmss"
+        let start = f.string(from: item.apptDate)
+        let end = f.string(from: item.apptDate.addingTimeInterval(3600))
+        func esc(_ s: String) -> String {
+            s.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: ",", with: "\\,")
+                .replacingOccurrences(of: ";", with: "\\;")
+                .replacingOccurrences(of: "\n", with: "\\n")
+        }
+        let ics = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Memory Aid LockBox//EN
+        BEGIN:VEVENT
+        SUMMARY:\(esc(item.title.isEmpty ? "Appointment" : item.title))
+        DTSTART:\(start)
+        DTEND:\(end)
+        LOCATION:\(esc(item.apptAddress))
+        DESCRIPTION:\(esc(item.apptPrep))
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let name = item.title.components(separatedBy: CharacterSet(charactersIn: "/\\:")).joined(separator: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(name.isEmpty ? "Appointment" : name).ics")
+        try? ics.data(using: .utf8)?.write(to: url)
+        #if os(iOS)
+        contactShareFile = ShareableFile(url: url)
+        #else
+        NSWorkspace.shared.open(url)
+        #endif
     }
 
     // MARK: - Receipt
