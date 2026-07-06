@@ -106,7 +106,7 @@ struct CardEditView: View {
                 } header: {
                     Text("Front / Back Photo").font(.system(size: 16))
                 } footer: {
-                    Text("\"Fill from image\" reads both sides on-device: scan the front first, then the back. It fills the card number, expiry, and security code (CVN). Verify the code — small print scans imperfectly.")
+                    Text("\"Fill from image\" reads every side on-device — scan both the front and the back (the number can be on either face). It fills the card number, expiry, and security codes (CVN). Verify them — small or embossed print scans imperfectly.")
                         .font(.system(size: 13))
                 }
             }
@@ -256,37 +256,42 @@ struct CardEditView: View {
 
     // MARK: - Fill from image
 
-    /// OCR the scanned card. The first page is treated as the front (card
-    /// number, expiry, name, and — for a 15-digit Amex — the front CID); the
-    /// second page, if any, as the back (the 3-digit CVN). Every value in the
-    /// vault is sensitive by default, so the security codes are read in too.
+    /// OCR every scanned side and fill empty fields from the pooled text. The
+    /// card number and expiry can sit on either face — Amex prints the number
+    /// flat on the back, Visa embosses it on the front — so we don't assume a
+    /// page position for them. The two security codes are told apart by length:
+    /// a 4-digit group is the Amex front CID, a 3-digit group the back CVN.
+    /// Every value in the vault is sensitive by default, so the codes are read
+    /// in too. (Embossed numbers are low-contrast and may scan imperfectly.)
     private func fillFromImage(pages: [Data]) {
         let sources = pages.isEmpty ? attachedImages : pages
-        guard let frontData = sources.first else { return }
+        guard !sources.isEmpty else { return }
         Task {
             isReading = true
             defer { isReading = false }
-            guard let front = await CardTextRecognizer.recognize(from: frontData) else { return }
-            let frontText = front.fullText
-            if name.isEmpty, let suggested = front.suggestedTitle { name = suggested }
-            if number.isEmpty, let n = Self.firstCardNumber(in: frontText) { number = n }
-            if expiry.isEmpty, let e = Self.firstExpiry(in: frontText) { expiry = e }
+
+            var recognized: [RecognizedCard] = []
+            for data in sources {
+                if let r = await CardTextRecognizer.recognize(from: data) { recognized.append(r) }
+            }
+            guard !recognized.isEmpty else { return }
+            let text = recognized.map(\.fullText).joined(separator: "\n")
+
+            if name.isEmpty, let suggested = recognized.compactMap(\.suggestedTitle).first { name = suggested }
+            if number.isEmpty, let n = Self.firstCardNumber(in: text) { number = n }
+            if expiry.isEmpty, let e = Self.firstExpiry(in: text) { expiry = e }
 
             let numberDigits = number.filter(\.isNumber)
-            // American Express (15-digit) prints a 4-digit CID on the front.
+            // 15-digit Amex carries a 4-digit CID; only look for it on Amex so a
+            // Visa's 4-digit number block is never mistaken for a code.
             if cvvFront.isEmpty, numberDigits.count == 15,
-               let f = Self.securityCode(in: frontText, length: 4, notPartOf: numberDigits) {
+               let f = Self.securityCode(in: text, length: 4, notPartOf: numberDigits) {
                 cvvFront = f
             }
-
-            var combined = frontText
-            if sources.count > 1, let back = await CardTextRecognizer.recognize(from: sources[1]) {
-                combined += "\n" + back.fullText
-                if cvv.isEmpty, let b = Self.securityCode(in: back.fullText, length: 3, notPartOf: numberDigits) {
-                    cvv = b
-                }
+            if cvv.isEmpty, let b = Self.securityCode(in: text, length: 3, notPartOf: numberDigits) {
+                cvv = b
             }
-            if notes.isEmpty { notes = combined }
+            if notes.isEmpty { notes = text }
         }
     }
 
