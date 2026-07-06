@@ -22,6 +22,7 @@ struct ItemListView: View {
     @State private var showAddJournal = false
     @State private var showAddAppt = false
     @State private var showAddReceipt = false
+    @State private var showConfigureFields = false
     @State private var exportFile: ExportFile?
 
     private struct ExportFile: Identifiable {
@@ -78,19 +79,25 @@ struct ItemListView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button { addTapped() } label: { Label("Add Item", systemImage: "plus") }
             }
-            // Journal-only: export the whole folder to Markdown (Obsidian/blog) or
-            // a PDF, both via the share sheet (roadmap 009 + Michael 7/6).
-            if folder.template == .journal {
+            // Per-folder menu: Configure Fields (005a/b) for every item folder,
+            // plus Journal export (roadmap 009 + Michael 7/6).
+            if folder.template != .photos {
                 ToolbarItem(placement: .automatic) {
                     Menu {
-                        Button { exportJournal(asPDF: false) } label: {
-                            Label("Export Markdown (.zip)", systemImage: "doc.plaintext")
+                        Button { showConfigureFields = true } label: {
+                            Label("Configure Fields", systemImage: "slider.horizontal.3")
                         }
-                        Button { exportJournal(asPDF: true) } label: {
-                            Label("Export PDF", systemImage: "doc.richtext")
+                        if folder.template == .journal {
+                            Divider()
+                            Button { exportJournal(asPDF: false) } label: {
+                                Label("Export Markdown (.zip)", systemImage: "doc.plaintext")
+                            }
+                            Button { exportJournal(asPDF: true) } label: {
+                                Label("Export PDF", systemImage: "doc.richtext")
+                            }
                         }
                     } label: {
-                        Label("Export", systemImage: "square.and.arrow.up")
+                        Label("Folder options", systemImage: "ellipsis.circle")
                     }
                 }
             }
@@ -99,6 +106,9 @@ struct ItemListView: View {
                 Button { showScannerSheet = true } label: { Label("Scan", systemImage: "scanner") }
             }
             #endif
+        }
+        .sheet(isPresented: $showConfigureFields) {
+            ConfigureFieldsView(folder: folder)
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddItem) {

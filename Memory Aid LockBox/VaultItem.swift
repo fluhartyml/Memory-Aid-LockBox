@@ -100,6 +100,11 @@ final class VaultItem {
     var receiptPaymentType: String = ""
     var receiptCardLast4: String = ""
 
+    /// User-added custom field values (roadmap 005b), a JSON [customFieldID:value]
+    /// map keyed by the folder's CustomFieldDef ids. Additive/defaulted for
+    /// CloudKit; empty on items in folders with no custom fields.
+    var customValuesJSON: String = ""
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {

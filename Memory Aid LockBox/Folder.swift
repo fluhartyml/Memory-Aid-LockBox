@@ -26,6 +26,14 @@ final class Folder {
     /// from its name (see `template`). Defaulted for CloudKit.
     var templateRaw: String = ""
 
+    /// Configure Fields (roadmap 005a/005b), both folder-level display config.
+    /// `hiddenFieldsJSON` = JSON [String] of built-in field keys hidden in this
+    /// folder (reversible — hides only, never deletes stored data).
+    /// `customFieldsJSON` = JSON [CustomFieldDef] of user-added named fields.
+    /// Both defaulted for CloudKit.
+    var hiddenFieldsJSON: String = ""
+    var customFieldsJSON: String = ""
+
     /// The folder's template: the stored value when set, otherwise inferred from
     /// the folder name (legacy folders). New folders always store an explicit
     /// value, so the inference only ever applies to pre-template folders.

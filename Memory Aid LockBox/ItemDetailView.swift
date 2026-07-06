@@ -91,10 +91,12 @@ struct ItemDetailView: View {
                 // PIN / Code — not shown for contacts (no PIN) or cards (the card
                 // section groups its own PIN field).
                 if !isContactItem && !isCardItem && !isCodesItem && !isJournalItem && !isApptItem && !isReceiptItem {
-                    if !item.pin.isEmpty {
-                        pinDisplaySection
+                    hideable("pin") {
+                        if !item.pin.isEmpty {
+                            pinDisplaySection
+                        }
+                        pinEditorSection
                     }
-                    pinEditorSection
                 }
 
                 // Journal entry date — editable, drives the timeline placement.
@@ -129,6 +131,11 @@ struct ItemDetailView: View {
                 // Card fields (number/expiry/etc.) + Present-to-cashier
                 if isCardItem {
                     cardSection
+                }
+
+                // User-added custom fields (roadmap 005b), if this folder defines any.
+                if let folder = item.folder, !folder.customFields.isEmpty {
+                    customFieldsSection(folder)
                 }
 
                 // Image shown large in the space below Notes
@@ -309,12 +316,12 @@ struct ItemDetailView: View {
             }
             .pickerStyle(.segmented)
 
-            contactField("Card number", text: $item.cardNumber, systemImage: "creditcard")
-            contactField("Expiry", text: $item.cardExpiry, systemImage: "calendar")
-            contactField("CVV", text: $item.cardCVV, systemImage: "lock")
-            contactField("PIN", text: $item.pin, systemImage: "key")
-            contactField("Issuer / bank", text: $item.cardIssuer, systemImage: "building.columns")
-            contactField("Barcode / QR", text: $item.cardBarcode, systemImage: "barcode")
+            hideable("cardNumber") { contactField("Card number", text: $item.cardNumber, systemImage: "creditcard") }
+            hideable("cardExpiry") { contactField("Expiry", text: $item.cardExpiry, systemImage: "calendar") }
+            hideable("cardCVV") { contactField("CVV", text: $item.cardCVV, systemImage: "lock") }
+            hideable("pin") { contactField("PIN", text: $item.pin, systemImage: "key") }
+            hideable("cardIssuer") { contactField("Issuer / bank", text: $item.cardIssuer, systemImage: "building.columns") }
+            hideable("cardBarcode") { contactField("Barcode / QR", text: $item.cardBarcode, systemImage: "barcode") }
 
             #if os(iOS)
             if !item.imageData.isEmpty {
@@ -343,12 +350,12 @@ struct ItemDetailView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            contactField("Provider", text: $item.apptProvider, systemImage: "person")
+            hideable("apptProvider") { contactField("Provider", text: $item.apptProvider, systemImage: "person") }
             DatePicker("Date & time", selection: $item.apptDate)
                 .font(.system(size: 17))
-            contactField("Prep / instructions", text: $item.apptPrep, systemImage: "list.clipboard")
-            contactField("Address", text: $item.apptAddress, systemImage: "mappin.and.ellipse")
-            contactField("Phone", text: $item.apptPhone, systemImage: "phone")
+            hideable("apptPrep") { contactField("Prep / instructions", text: $item.apptPrep, systemImage: "list.clipboard") }
+            hideable("apptAddress") { contactField("Address", text: $item.apptAddress, systemImage: "mappin.and.ellipse") }
+            hideable("apptPhone") { contactField("Phone", text: $item.apptPhone, systemImage: "phone") }
 
             HStack(spacing: 12) {
                 Button {
@@ -406,8 +413,8 @@ struct ItemDetailView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            contactField("Address", text: $item.receiptAddress, systemImage: "mappin.and.ellipse")
-            contactField("Phone", text: $item.receiptPhone, systemImage: "phone")
+            hideable("receiptAddress") { contactField("Address", text: $item.receiptAddress, systemImage: "mappin.and.ellipse") }
+            hideable("receiptPhone") { contactField("Phone", text: $item.receiptPhone, systemImage: "phone") }
             DatePicker("Date & time", selection: $item.receiptDate).font(.system(size: 16))
 
             if !item.receiptItems.isEmpty {
@@ -423,9 +430,9 @@ struct ItemDetailView: View {
             }
 
             Group {
-                receiptTotalRow("Subtotal", item.receiptSubtotal)
-                receiptTotalRow("Tax", item.receiptTax)
-                receiptTotalRow("Total", item.receiptTotal)
+                hideable("receiptSubtotal") { receiptTotalRow("Subtotal", item.receiptSubtotal) }
+                hideable("receiptTax") { receiptTotalRow("Tax", item.receiptTax) }
+                hideable("receiptTotal") { receiptTotalRow("Total", item.receiptTotal) }
             }
             if !item.receiptPaymentType.isEmpty || !item.receiptCardLast4.isEmpty {
                 let last4 = item.receiptCardLast4.isEmpty ? "" : " ••\(item.receiptCardLast4)"
@@ -496,6 +503,31 @@ struct ItemDetailView: View {
         }
     }
 
+    // MARK: - Configure Fields (roadmap 005a/b)
+
+    /// Hides a built-in field row when the folder has toggled it off (005a).
+    @ViewBuilder
+    private func hideable(_ key: String, @ViewBuilder _ content: () -> some View) -> some View {
+        if !(item.folder?.isFieldHidden(key) ?? false) {
+            content()
+        }
+    }
+
+    /// The folder's user-added custom fields, edited per item (005b).
+    private func customFieldsSection(_ folder: Folder) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("More fields")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+            ForEach(folder.customFields) { def in
+                contactField(def.name, text: Binding(
+                    get: { item.customValue(def.id) },
+                    set: { item.setCustomValue($0, for: def.id) }
+                ), systemImage: "tag")
+            }
+        }
+    }
+
     // MARK: - Codes / Accounts
 
     private var codesSection: some View {
@@ -504,9 +536,9 @@ struct ItemDetailView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            contactField("Username / email", text: $item.codeUsername, systemImage: "person")
-            contactField("Password", text: $item.codePassword, systemImage: "key")
-            contactField("Website URL", text: $item.codeWebsite, systemImage: "globe")
+            hideable("codeUsername") { contactField("Username / email", text: $item.codeUsername, systemImage: "person") }
+            hideable("codePassword") { contactField("Password", text: $item.codePassword, systemImage: "key") }
+            hideable("codeWebsite") { contactField("Website URL", text: $item.codeWebsite, systemImage: "globe") }
         }
     }
 
