@@ -51,7 +51,10 @@ final class VaultItem {
     var isCard: Bool = false
     var cardNumber: String = ""
     var cardExpiry: String = ""
+    /// Security code printed on the BACK (Visa/Mastercard/Discover, 3 digits).
     var cardCVV: String = ""
+    /// Security code printed on the FRONT (American Express CID, 4 digits).
+    var cardCVVFront: String = ""
     var cardIssuer: String = ""
     var cardTypeRaw: String = ""
     var cardBarcode: String = ""

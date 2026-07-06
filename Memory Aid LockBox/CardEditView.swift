@@ -37,7 +37,8 @@ struct CardEditView: View {
     @State private var type: CardType = .credit
     @State private var number = ""
     @State private var expiry = ""
-    @State private var cvv = ""
+    @State private var cvv = ""        // back code (Visa/MC/Discover, 3 digits)
+    @State private var cvvFront = ""   // front code (Amex CID, 4 digits)
     @State private var pin = ""
     @State private var issuer = ""
     @State private var barcode = ""
@@ -81,7 +82,8 @@ struct CardEditView: View {
                 Section {
                     field("Card number", $number)
                     field("Expiry (MM/YY)", $expiry)
-                    field("CVV", $cvv)
+                    field("CVN — back (3 digits)", $cvv)
+                    field("CVN — front / Amex (4 digits)", $cvvFront)
                     field("PIN", $pin)
                     field("Issuer / bank", $issuer)
                     field("Barcode / QR", $barcode)
@@ -104,7 +106,7 @@ struct CardEditView: View {
                 } header: {
                     Text("Front / Back Photo").font(.system(size: 16))
                 } footer: {
-                    Text("\"Fill from image\" scans the card and fills any empty fields with on-device text recognition.")
+                    Text("\"Fill from image\" reads both sides on-device: scan the front first, then the back. It fills the card number, expiry, and security code (CVN). Verify the code — small print scans imperfectly.")
                         .font(.system(size: 13))
                 }
             }
@@ -134,7 +136,7 @@ struct CardEditView: View {
                         attachedImages.append(contentsOf: pages)
                         if pendingFillAfterScan {
                             pendingFillAfterScan = false
-                            if let scanned = pages.first { fillFromImage(from: scanned) }
+                            fillFromImage(pages: pages)
                         }
                     }
                 case .camera:
@@ -147,7 +149,7 @@ struct CardEditView: View {
                     attachedImages.append(contentsOf: pages)
                     if pendingFillAfterScan {
                         pendingFillAfterScan = false
-                        if let scanned = pages.first { fillFromImage(from: scanned) }
+                        fillFromImage(pages: pages)
                     }
                 }
             }
@@ -254,17 +256,37 @@ struct CardEditView: View {
 
     // MARK: - Fill from image
 
-    private func fillFromImage(from image: Data? = nil) {
-        guard let first = image ?? attachedImages.first else { return }
+    /// OCR the scanned card. The first page is treated as the front (card
+    /// number, expiry, name, and — for a 15-digit Amex — the front CID); the
+    /// second page, if any, as the back (the 3-digit CVN). Every value in the
+    /// vault is sensitive by default, so the security codes are read in too.
+    private func fillFromImage(pages: [Data]) {
+        let sources = pages.isEmpty ? attachedImages : pages
+        guard let frontData = sources.first else { return }
         Task {
             isReading = true
             defer { isReading = false }
-            guard let card = await CardTextRecognizer.recognize(from: first) else { return }
-            let text = card.fullText
-            if name.isEmpty, let suggested = card.suggestedTitle { name = suggested }
-            if number.isEmpty, let n = Self.firstCardNumber(in: text) { number = n }
-            if expiry.isEmpty, let e = Self.firstExpiry(in: text) { expiry = e }
-            if notes.isEmpty { notes = text }
+            guard let front = await CardTextRecognizer.recognize(from: frontData) else { return }
+            let frontText = front.fullText
+            if name.isEmpty, let suggested = front.suggestedTitle { name = suggested }
+            if number.isEmpty, let n = Self.firstCardNumber(in: frontText) { number = n }
+            if expiry.isEmpty, let e = Self.firstExpiry(in: frontText) { expiry = e }
+
+            let numberDigits = number.filter(\.isNumber)
+            // American Express (15-digit) prints a 4-digit CID on the front.
+            if cvvFront.isEmpty, numberDigits.count == 15,
+               let f = Self.securityCode(in: frontText, length: 4, notPartOf: numberDigits) {
+                cvvFront = f
+            }
+
+            var combined = frontText
+            if sources.count > 1, let back = await CardTextRecognizer.recognize(from: sources[1]) {
+                combined += "\n" + back.fullText
+                if cvv.isEmpty, let b = Self.securityCode(in: back.fullText, length: 3, notPartOf: numberDigits) {
+                    cvv = b
+                }
+            }
+            if notes.isEmpty { notes = combined }
         }
     }
 
@@ -286,6 +308,20 @@ struct CardEditView: View {
         return String(text[range])
     }
 
+    /// A standalone group of exactly `length` digits — the security code (CVN /
+    /// Amex CID). Skips the expiry (it carries a "/") and any group that's part
+    /// of the card number, so the code isn't confused with a number block.
+    static func securityCode(in text: String, length: Int, notPartOf number: String) -> String? {
+        for raw in text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }) {
+            if raw.contains("/") { continue }                 // expiry, not a code
+            let digits = raw.filter(\.isNumber)
+            guard digits.count == length else { continue }
+            if !number.isEmpty && number.contains(digits) { continue }  // a card-number block
+            return digits
+        }
+        return nil
+    }
+
     // MARK: - Save
 
     private func save() {
@@ -297,6 +333,7 @@ struct CardEditView: View {
         item.cardNumber = number
         item.cardExpiry = expiry
         item.cardCVV = cvv
+        item.cardCVVFront = cvvFront
         item.cardIssuer = issuer
         item.cardTypeRaw = type.rawValue
         item.cardBarcode = barcode

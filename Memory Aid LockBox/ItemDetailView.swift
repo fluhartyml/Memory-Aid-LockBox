@@ -341,7 +341,8 @@ struct ItemDetailView: View {
 
             hideable("cardNumber") { contactField("Card number", text: $item.cardNumber, systemImage: "creditcard") }
             hideable("cardExpiry") { contactField("Expiry", text: $item.cardExpiry, systemImage: "calendar") }
-            hideable("cardCVV") { contactField("CVV", text: $item.cardCVV, systemImage: "lock") }
+            hideable("cardCVV") { contactField("CVN — back (3 digits)", text: $item.cardCVV, systemImage: "lock") }
+            hideable("cardCVVFront") { contactField("CVN — front / Amex (4 digits)", text: $item.cardCVVFront, systemImage: "lock.square") }
             hideable("pin") { contactField("PIN", text: $item.pin, systemImage: "key") }
             hideable("cardIssuer") { contactField("Issuer / bank", text: $item.cardIssuer, systemImage: "building.columns") }
             hideable("cardBarcode") { contactField("Barcode / QR", text: $item.cardBarcode, systemImage: "barcode") }

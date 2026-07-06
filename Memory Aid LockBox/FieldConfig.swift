@@ -92,7 +92,9 @@ extension FolderTemplate {
         switch self {
         case .cards:
             return [("cardNumber", "Card number"), ("cardExpiry", "Expiry"),
-                    ("cardCVV", "CVV"), ("pin", "PIN"), ("cardIssuer", "Issuer / bank"),
+                    ("cardCVV", "CVN — back (3 digits)"),
+                    ("cardCVVFront", "CVN — front / Amex (4 digits)"),
+                    ("pin", "PIN"), ("cardIssuer", "Issuer / bank"),
                     ("cardBarcode", "Barcode / QR")]
         case .codesAccounts:
             return [("codeUsername", "Username / email"), ("codePassword", "Password"),
