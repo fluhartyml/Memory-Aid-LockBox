@@ -223,7 +223,7 @@ struct ContactEditView: View {
                     contactField("Website", text: $website, systemImage: "globe")
                     contactField("Hours", text: $hours, systemImage: "clock")
                 } else {
-                    contactField("Relationship", text: $relationship, systemImage: "person.2")
+                    contactField("Source", text: $relationship, systemImage: "location")
                 }
             } header: {
                 Text("Details").font(.system(size: 16))

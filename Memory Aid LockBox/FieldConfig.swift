@@ -102,7 +102,7 @@ extension FolderTemplate {
         case .contacts:
             return [("contactPhone", "Phone"), ("contactEmail", "Email"),
                     ("contactAddress", "Address"), ("contactWebsite", "Website"),
-                    ("contactHours", "Hours"), ("contactRelationship", "Relationship")]
+                    ("contactHours", "Hours"), ("contactRelationship", "Source")]
         case .appointments:
             return [("apptProvider", "Provider"), ("apptPrep", "Prep / instructions"),
                     ("apptAddress", "Address"), ("apptPhone", "Phone")]

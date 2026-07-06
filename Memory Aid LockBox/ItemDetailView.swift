@@ -635,7 +635,7 @@ struct ItemDetailView: View {
                 hideable("contactWebsite") { contactField("Website", text: $item.contactWebsite, systemImage: "globe") }
                 hideable("contactHours") { contactField("Hours", text: $item.contactHours, systemImage: "clock") }
             } else {
-                hideable("contactRelationship") { contactField("Relationship", text: $item.contactRelationship, systemImage: "person.2") }
+                hideable("contactRelationship") { contactField("Source", text: $item.contactRelationship, systemImage: "location") }
             }
 
             #if os(iOS)
