@@ -25,22 +25,47 @@ struct JournalEntryEditView: View {
 
     @State private var libraryItem: PhotosPickerItem?
     @State private var showCamera = false
+    @State private var showDatePicker = false
+
+    /// Fixed year-month-day readout (e.g. "2026 Jul 6, 12:42 PM"), independent of
+    /// the device's US month-day-year locale. Michael wants Y-M-D specifically.
+    private static let ymdFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy MMM d,  h:mm a"
+        return f
+    }()
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    // Group the pickers next to the label instead of pushing them
-                    // to the far right of a wide row. One DatePicker already covers
-                    // year/month/day (tap the date chip) plus time — no separate
-                    // pickers needed.
-                    HStack(spacing: 12) {
-                        Text("Date & time")
-                        DatePicker("Date & time", selection: $entryDate)
-                            .labelsHidden()
-                        Spacer()
+                    // Custom year-month-day readout (the native picker can't be
+                    // reordered off the US M-D-Y locale). Tap to expand a calendar
+                    // to edit — one control, no separate pickers.
+                    Button {
+                        withAnimation { showDatePicker.toggle() }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text("Date & time")
+                            Spacer()
+                            Text(Self.ymdFormatter.string(from: entryDate))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.down")
+                                .rotationEffect(.degrees(showDatePicker ? 180 : 0))
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.system(size: 17))
+                        .contentShape(Rectangle())
                     }
-                    .font(.system(size: 17))
+                    .buttonStyle(.plain)
+
+                    if showDatePicker {
+                        DatePicker("", selection: $entryDate,
+                                   displayedComponents: [.date, .hourAndMinute])
+                            .datePickerStyle(.graphical)
+                            .labelsHidden()
+                    }
                 } header: {
                     Text("When").font(.system(size: 16))
                 } footer: {
