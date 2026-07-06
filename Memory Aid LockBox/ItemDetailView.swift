@@ -44,6 +44,10 @@ struct ItemDetailView: View {
     private var isCodesItem: Bool {
         item.isCodesAccount || item.folder?.template == .codesAccounts
     }
+
+    private var isJournalItem: Bool {
+        item.isJournal || item.folder?.template == .journal
+    }
     #if os(iOS)
     @State private var showPresentCard = false
     #endif
@@ -74,11 +78,16 @@ struct ItemDetailView: View {
 
                 // PIN / Code — not shown for contacts (no PIN) or cards (the card
                 // section groups its own PIN field).
-                if !isContactItem && !isCardItem && !isCodesItem {
+                if !isContactItem && !isCardItem && !isCodesItem && !isJournalItem {
                     if !item.pin.isEmpty {
                         pinDisplaySection
                     }
                     pinEditorSection
+                }
+
+                // Journal entry date — editable, drives the timeline placement.
+                if isJournalItem {
+                    journalSection
                 }
 
                 // Login/credential fields (username/password/website) — above
@@ -248,7 +257,7 @@ struct ItemDetailView: View {
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(isCodesItem ? "Notes / 2FA" : "Notes")
+            Text(notesLabel)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
@@ -295,6 +304,24 @@ struct ItemDetailView: View {
                 .padding(.top, 4)
             }
             #endif
+        }
+    }
+
+    private var notesLabel: String {
+        if isCodesItem { return "Notes / 2FA" }
+        if isJournalItem { return "Body" }
+        return "Notes"
+    }
+
+    // MARK: - Journal
+
+    private var journalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Date & time")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+            DatePicker("", selection: $item.journalDate)
+                .labelsHidden()
         }
     }
 

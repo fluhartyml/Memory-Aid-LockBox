@@ -65,6 +65,14 @@ final class VaultItem {
     var codePassword: String = ""
     var codeWebsite: String = ""
 
+    /// True when this item is a Journal entry (roadmap 009). The title/body use
+    /// `title`/`notes`; the header image is `imageData.first`. `journalDate` is
+    /// the entry's OWN timestamp — the timeline sorts on it (newest first) and
+    /// editing an old entry never bumps it, unlike `dateModified`. All defaulted
+    /// for CloudKit.
+    var isJournal: Bool = false
+    var journalDate: Date = Date()
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {

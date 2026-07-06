@@ -19,6 +19,13 @@ struct ItemListView: View {
     @State private var showAddContact = false
     @State private var showAddCard = false
     @State private var showAddCodes = false
+    @State private var showAddJournal = false
+    @State private var exportFile: ExportFile?
+
+    private struct ExportFile: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
     @State private var showScanner = false
     @State private var showPhotoPicker = false
     @State private var scannedPages: [Data] = []
@@ -28,7 +35,12 @@ struct ItemListView: View {
     #endif
 
     var filteredItems: [VaultItem] {
-        let items = (folder.items ?? []).sorted { $0.dateModified > $1.dateModified }
+        // Journal sorts by each entry's OWN date+time (newest first) so editing
+        // an old entry never bumps it; every other folder sorts by last-modified.
+        let source = folder.items ?? []
+        let items = folder.template == .journal
+            ? source.sorted { $0.journalDate > $1.journalDate }
+            : source.sorted { $0.dateModified > $1.dateModified }
         if searchText.isEmpty {
             return items
         }
@@ -63,6 +75,22 @@ struct ItemListView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { addTapped() } label: { Label("Add Item", systemImage: "plus") }
+            }
+            // Journal-only: export the whole folder to Markdown (Obsidian/blog) or
+            // a PDF, both via the share sheet (roadmap 009 + Michael 7/6).
+            if folder.template == .journal {
+                ToolbarItem(placement: .automatic) {
+                    Menu {
+                        Button { exportJournal(asPDF: false) } label: {
+                            Label("Export Markdown (.zip)", systemImage: "doc.plaintext")
+                        }
+                        Button { exportJournal(asPDF: true) } label: {
+                            Label("Export PDF", systemImage: "doc.richtext")
+                        }
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                }
             }
             #if os(macOS)
             ToolbarItem(placement: .automatic) {
@@ -110,6 +138,20 @@ struct ItemListView: View {
         #else
         .sheet(isPresented: $showAddCodes) {
             CodesAccountsEditView(folder: folder)
+        }
+        #endif
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showAddJournal) {
+            JournalEntryEditView(folder: folder)
+        }
+        #else
+        .sheet(isPresented: $showAddJournal) {
+            JournalEntryEditView(folder: folder)
+        }
+        #endif
+        #if os(iOS)
+        .sheet(item: $exportFile) { file in
+            FileShareSheet(urls: [file.url])
         }
         #endif
         #if os(iOS)
@@ -163,10 +205,32 @@ struct ItemListView: View {
         case .contacts:      showAddContact = true
         case .cards:         showAddCard = true
         case .codesAccounts: showAddCodes = true
+        case .journal:       showAddJournal = true
         case .photos:        showPhotoPicker = true
         case .customNotes:   showAddItem = true
         default:             showAddItem = true
         }
+    }
+
+    // MARK: - Journal export (roadmap 009 + Michael 7/6)
+
+    private var journalEntries: [JournalExporter.Entry] {
+        filteredItems.map {
+            JournalExporter.Entry(date: $0.journalDate, title: $0.title,
+                                  body: $0.notes, headerImage: $0.imageData.first)
+        }
+    }
+
+    private func exportJournal(asPDF: Bool) {
+        let url = asPDF
+            ? JournalExporter.pdf(folderName: folder.name, entries: journalEntries)
+            : JournalExporter.markdownArchive(folderName: folder.name, entries: journalEntries)
+        guard let url else { return }
+        #if os(iOS)
+        exportFile = ExportFile(url: url)
+        #else
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        #endif
     }
 
     @ViewBuilder
@@ -194,9 +258,17 @@ struct ItemListView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(.secondary)
                     }
-                    Text(item.dateModified, format: .dateTime.month(.abbreviated).day().year())
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                    // Journal rows read as YYYY MMM DD HH:MM:SS by the entry's own
+                    // date; other folders show the last-modified day.
+                    if folder.template == .journal {
+                        Text(JournalExporter.label(for: item.journalDate, title: ""))
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(item.dateModified, format: .dateTime.month(.abbreviated).day().year())
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
