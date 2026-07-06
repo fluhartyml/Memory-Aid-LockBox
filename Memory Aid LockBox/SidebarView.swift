@@ -134,7 +134,9 @@ struct SidebarView: View {
 #if DEBUG
             Divider()
             Button(role: .destructive) {
-                showResetVaultConfirm = true
+                // Defer so the Menu fully dismisses before the alert is triggered —
+                // flipping the flag inside the menu's dismissal gets swallowed on iPad.
+                DispatchQueue.main.async { showResetVaultConfirm = true }
             } label: {
                 Label("Reset Vault (dev)", systemImage: "trash")
             }

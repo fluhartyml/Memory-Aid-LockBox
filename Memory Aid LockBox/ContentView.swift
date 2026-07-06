@@ -92,19 +92,28 @@ struct VaultTabView: View {
             SettingsView()
         }
 #if DEBUG
-        .confirmationDialog(
+        // An .alert (not .confirmationDialog) so it presents reliably on iPad even
+        // when triggered from the sidebar's overflow Menu. The destructive action
+        // is additionally gated behind a Face ID / Touch ID challenge — a wipe of
+        // the whole vault must never run on a single stray tap.
+        .alert(
             "Reset the entire vault?",
-            isPresented: $showResetVaultConfirm,
-            titleVisibility: .visible
+            isPresented: $showResetVaultConfirm
         ) {
             Button("Wipe & Reseed", role: .destructive) {
-                selectedItem = nil
-                selectedFolder = nil
-                DefaultFolderSeeder.shared.devResetAndReseed(container: modelContext.container)
+                Task {
+                    let ok = await BiometricAuthenticator.authenticate(
+                        reason: "Confirm your identity to wipe and reseed the entire vault."
+                    )
+                    guard ok else { return }
+                    selectedItem = nil
+                    selectedFolder = nil
+                    DefaultFolderSeeder.shared.devResetAndReseed(container: modelContext.container)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("DEV ONLY: deletes every folder, item, and photo — including the seed-once marker in iCloud — then recreates the starter folders, reproducing a genuine first install.")
+            Text("DEV ONLY: deletes every folder, item, and photo — including the seed-once marker in iCloud — then recreates the starter folders, reproducing a genuine first install. You'll be asked to confirm with Face ID / Touch ID.")
         }
 #endif
         // Switching folders drops any pushed item detail so we don't linger on an
