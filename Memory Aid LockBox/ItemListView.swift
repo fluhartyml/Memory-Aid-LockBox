@@ -72,14 +72,14 @@ struct ItemListView: View {
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddItem) {
-            AddItemView(folder: folder, initialImages: $scannedPages)
+            CustomNotesEditView(folder: folder, initialImages: $scannedPages)
                 .onDisappear {
                     scannedPages = []
                 }
         }
         #else
         .sheet(isPresented: $showAddItem) {
-            AddItemView(folder: folder, initialImages: $scannedPages)
+            CustomNotesEditView(folder: folder, initialImages: $scannedPages)
                 .onDisappear {
                     scannedPages = []
                 }
@@ -153,16 +153,18 @@ struct ItemListView: View {
     }
 
     private func addTapped() {
-        // Route the "+" by folder template. Only Contacts has a specialized
-        // create sheet so far; every other template still opens the generic
-        // AddItemView (with Scan/Camera/Library on it) until its own sheet is
-        // built. Photos never reaches here — ContentView routes it to the media
-        // library — but it's handled for completeness.
+        // Route the "+" by folder template — each folder gets its own specialized
+        // sheet, never a shared generic one. Contacts/Cards/Codes have theirs;
+        // Custom/Notes uses CustomNotesEditView (the catch-all). Journal/Receipts/
+        // Appointments fall through to that catch-all only until their own sheets
+        // are built. Photos never reaches here (ContentView routes it to the media
+        // library), handled for completeness.
         switch folder.template {
         case .contacts:      showAddContact = true
         case .cards:         showAddCard = true
         case .codesAccounts: showAddCodes = true
         case .photos:        showPhotoPicker = true
+        case .customNotes:   showAddItem = true
         default:             showAddItem = true
         }
     }
