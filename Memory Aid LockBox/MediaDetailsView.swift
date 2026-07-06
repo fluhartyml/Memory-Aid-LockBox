@@ -59,16 +59,19 @@ struct MediaDetailsForm: View {
             }
 
             if isPhoto {
-                // Body — the full entry, no length limit.
-                Section {
-                    TextEditor(text: $asset.notes)
-                        .font(.system(size: 16))
-                        .frame(minHeight: 160)
-                } header: {
-                    Text("Body").font(.system(size: 15))
-                } footer: {
-                    Text("The full text, no length limit — embedded in the photo's XMP and travels with the file on export.")
-                        .font(.system(size: 12))
+                // Body — the full entry, no length limit. Inline here on narrow
+                // screens; on wide it sits under the Caption beside the photo.
+                if mode == .all {
+                    Section {
+                        TextEditor(text: $asset.notes)
+                            .font(.system(size: 16))
+                            .frame(minHeight: 160)
+                    } header: {
+                        Text("Body").font(.system(size: 15))
+                    } footer: {
+                        Text("The full text, no length limit — embedded in the photo's XMP and travels with the file on export.")
+                            .font(.system(size: 12))
+                    }
                 }
 
                 Section {

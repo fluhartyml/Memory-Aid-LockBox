@@ -34,13 +34,17 @@ struct MediaViewerView: View {
             Group {
                 if isWide {
                     HStack(spacing: 0) {
-                        // Left: photo with Title/Notes prominent right beneath it.
+                        // Left: photo, then Title/Caption/Body beneath it. The photo
+                        // keeps the bulk of the height; the text block is bounded and
+                        // scrolls when the body is long.
                         VStack(spacing: 0) {
                             mediaArea
+                            Divider()
                             prominentTitleNotes
+                                .frame(maxHeight: 360)
                         }
                         Divider()
-                        // Right: the rest of the data (editable metadata + EXIF).
+                        // Right: capture date + read-only image/EXIF metadata.
                         MediaDetailsForm(asset: asset, mode: .metadataOnly)
                             .frame(width: 360)
                     }
@@ -64,21 +68,27 @@ struct MediaViewerView: View {
         }
     }
 
-    /// Title + Caption shown large and prominent directly under the photo (wide
-    /// layout only) — like a blog headline and preview. The full Body lives in the
-    /// details panel. Binds straight to the asset.
+    /// Title, Caption, then Body — the full blog-style stack, shown directly under
+    /// the photo in the wide layout. Scrolls when the body is long. Binds to asset.
     private var prominentTitleNotes: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Title", text: $asset.title)
-                .font(.system(size: 24, weight: .bold))
-                .textFieldStyle(.plain)
-            TextField("Caption", text: $asset.caption, axis: .vertical)
-                .font(.system(size: 17))
-                .textFieldStyle(.plain)
-                .lineLimit(1...4)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                TextField("Title", text: $asset.title)
+                    .font(.system(size: 24, weight: .bold))
+                    .textFieldStyle(.plain)
+                TextField("Caption", text: $asset.caption, axis: .vertical)
+                    .font(.system(size: 17))
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...4)
+                Divider()
+                TextField("Body", text: $asset.notes, axis: .vertical)
+                    .font(.system(size: 16))
+                    .textFieldStyle(.plain)
+                    .lineLimit(4...)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
         #if os(iOS)
         .background(Color(.secondarySystemBackground))
         #endif
