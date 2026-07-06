@@ -1051,7 +1051,10 @@ private struct HeaderImageBanner: View {
                 .contentShape(Rectangle())
                 .highPriorityGesture(
                     // Drag pans in whichever axis has room (left/right for a wide
-                    // panorama, up/down for a tall portrait).
+                    // panorama, up/down for a tall portrait); pinch zooms to reframe.
+                    // Both share high priority so either wins over the page scroll —
+                    // pinch as a mere simultaneous gesture got swallowed by the drag
+                    // on a normal photo that had vertical pan room.
                     DragGesture()
                         .onChanged { value in
                             if dragAnchor == nil { dragAnchor = CGPoint(x: hBias, y: bias) }
@@ -1068,20 +1071,18 @@ private struct HeaderImageBanner: View {
                             dragAnchor = nil
                             onCommit()
                         }
-                )
-                .simultaneousGesture(
-                    // Pinch to zoom — icing that lets any image be reframed, and
-                    // gives a panorama vertical room or a portrait horizontal room.
-                    MagnificationGesture()
-                        .onChanged { value in
-                            if zoomAnchor == nil { zoomAnchor = zoom }
-                            let base = zoomAnchor ?? zoom
-                            zoom = min(max(base * value, 1), maxZoom)
-                        }
-                        .onEnded { _ in
-                            zoomAnchor = nil
-                            onCommit()
-                        }
+                        .simultaneously(with:
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    if zoomAnchor == nil { zoomAnchor = zoom }
+                                    let base = zoomAnchor ?? zoom
+                                    zoom = min(max(base * value, 1), maxZoom)
+                                }
+                                .onEnded { _ in
+                                    zoomAnchor = nil
+                                    onCommit()
+                                }
+                        )
                 )
         }
         .frame(height: bannerHeight)
