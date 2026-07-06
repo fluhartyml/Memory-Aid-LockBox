@@ -105,6 +105,15 @@ final class VaultItem {
     /// CloudKit; empty on items in folders with no custom fields.
     var customValuesJSON: String = ""
 
+    /// Contacts CRM (roadmap 010a/b/c), all on a contact item. `interactionsJSON`
+    /// = the running interaction log; `significantDatesJSON` = birthdays/etc that
+    /// can push to Calendar; the follow-up fields drive an opt-in overdue nudge.
+    /// All JSON collections / defaulted for CloudKit.
+    var interactionsJSON: String = ""
+    var significantDatesJSON: String = ""
+    var followUpEnabled: Bool = false
+    var followUpIntervalDays: Int = 30
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {

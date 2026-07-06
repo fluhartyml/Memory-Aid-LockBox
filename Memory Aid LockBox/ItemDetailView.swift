@@ -126,6 +126,8 @@ struct ItemDetailView: View {
                 // Secure contact card fields + share / add-to-Contacts
                 if isContactItem {
                     contactSection
+                    // CRM: interaction log · significant dates · follow-up (010a/b/c)
+                    ContactCRMView(item: item)
                 }
 
                 // Card fields (number/expiry/etc.) + Present-to-cashier
@@ -556,15 +558,15 @@ struct ItemDetailView: View {
             }
             .pickerStyle(.segmented)
 
-            contactField("Phone", text: $item.contactPhone, systemImage: "phone")
-            contactField("Email", text: $item.contactEmail, systemImage: "envelope")
-            contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse")
+            hideable("contactPhone") { contactField("Phone", text: $item.contactPhone, systemImage: "phone") }
+            hideable("contactEmail") { contactField("Email", text: $item.contactEmail, systemImage: "envelope") }
+            hideable("contactAddress") { contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse") }
 
             if item.isBusinessContact {
-                contactField("Website", text: $item.contactWebsite, systemImage: "globe")
-                contactField("Hours", text: $item.contactHours, systemImage: "clock")
+                hideable("contactWebsite") { contactField("Website", text: $item.contactWebsite, systemImage: "globe") }
+                hideable("contactHours") { contactField("Hours", text: $item.contactHours, systemImage: "clock") }
             } else {
-                contactField("Relationship", text: $item.contactRelationship, systemImage: "person.2")
+                hideable("contactRelationship") { contactField("Relationship", text: $item.contactRelationship, systemImage: "person.2") }
             }
 
             #if os(iOS)
