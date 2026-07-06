@@ -27,53 +27,57 @@ struct MediaDetailsForm: View {
     @Bindable var asset: MediaAsset
     var mode: Mode = .all
 
-    @State private var description = ""
     @State private var captureDate = Date()
     @State private var hasDate = false
     @State private var sections: [MetadataService.Section] = []
-    @State private var metadataStatus: String?
+    // What's currently embedded, so the file is only rewritten when something changed.
+    @State private var loadedTitle = ""
+    @State private var loadedCaption = ""
+    @State private var loadedBody = ""
+    @State private var loadedDate: Date?
 
     private var isPhoto: Bool { asset.mediaType == .photo }
 
     var body: some View {
         Form {
+            // Title + Caption — the short tiers. In the wide layout they sit beside
+            // the photo (see MediaViewerView), so only the narrow/sheet form shows
+            // them here.
             if mode == .all {
                 Section {
                     TextField("Title", text: $asset.title).font(.system(size: 17))
-                    TextEditor(text: $asset.notes)
-                        .font(.system(size: 16))
-                        .frame(minHeight: 80)
+                    TextField("Caption", text: $asset.caption, axis: .vertical)
+                        .font(.system(size: 16)).lineLimit(1...3)
                 } header: {
-                    Text("Title & Notes").font(.system(size: 15))
+                    Text("Title & Caption").font(.system(size: 15))
                 } footer: {
-                    Text("Stored on this item in the vault — separate from the file's own metadata.")
+                    Text(isPhoto
+                         ? "Title and Caption save into the photo — they show in Apple Photos and export with it."
+                         : "Stored on this item in the vault.")
                         .font(.system(size: 12))
                 }
             }
 
             if isPhoto {
+                // Body — the full entry, no length limit.
                 Section {
-                    TextField("Description", text: $description, axis: .vertical)
+                    TextEditor(text: $asset.notes)
                         .font(.system(size: 16))
+                        .frame(minHeight: 160)
+                } header: {
+                    Text("Body").font(.system(size: 15))
+                } footer: {
+                    Text("The full text, no length limit — embedded in the photo's XMP and travels with the file on export.")
+                        .font(.system(size: 12))
+                }
+
+                Section {
                     Toggle("Set capture date", isOn: $hasDate).font(.system(size: 16))
                     if hasDate {
-                        DatePicker("Captured", selection: $captureDate)
-                            .font(.system(size: 16))
-                    }
-                    Button {
-                        saveMetadata()
-                    } label: {
-                        Label("Save metadata to photo", systemImage: "square.and.arrow.down")
-                            .font(.system(size: 15, weight: .semibold))
-                    }
-                    if let metadataStatus {
-                        Text(metadataStatus).font(.system(size: 13)).foregroundStyle(.secondary)
+                        DatePicker("Captured", selection: $captureDate).font(.system(size: 16))
                     }
                 } header: {
-                    Text("Editable metadata").font(.system(size: 15))
-                } footer: {
-                    Text("Writes into the photo's own EXIF/TIFF, preserving all other tags. Deliberate edit only.")
-                        .font(.system(size: 12))
+                    Text("Photo date").font(.system(size: 15))
                 }
 
                 ForEach(sections) { section in
@@ -90,33 +94,51 @@ struct MediaDetailsForm: View {
                         Text(section.title).font(.system(size: 15))
                     }
                 }
+            } else if mode == .all {
+                Section {
+                    TextEditor(text: $asset.notes).font(.system(size: 16)).frame(minHeight: 120)
+                } header: {
+                    Text("Notes").font(.system(size: 15))
+                }
             }
         }
         #if os(macOS)
         .formStyle(.grouped)
         #endif
-        .onAppear(perform: loadMetadata)
+        .onAppear(perform: load)
+        .onDisappear(perform: embedIfChanged)
     }
 
-    private func loadMetadata() {
+    private func load() {
         guard isPhoto, let data = asset.data else { return }
-        let fields = MetadataService.editableFields(from: data)
-        description = fields.description
-        if let d = fields.date { captureDate = d; hasDate = true }
+        let f = MetadataService.editableFields(from: data)
+        loadedTitle = f.title; loadedCaption = f.caption; loadedBody = f.body; loadedDate = f.date
+        // Surface any embedded text if the vault fields are still empty.
+        if asset.title.isEmpty { asset.title = f.title }
+        if asset.caption.isEmpty { asset.caption = f.caption }
+        if asset.notes.isEmpty { asset.notes = f.body }
+        if let d = f.date { captureDate = d; hasDate = true }
         sections = MetadataService.sections(from: data)
     }
 
-    private func saveMetadata() {
-        guard let data = asset.data else { return }
-        if let newData = MetadataService.edit(
-            data: data,
-            description: description.isEmpty ? nil : description,
-            date: hasDate ? captureDate : nil) {
+    /// On close, write the three tiers + date into the photo — but only if the
+    /// user actually changed something, so we don't rewrite the file for nothing.
+    private func embedIfChanged() {
+        guard isPhoto, let data = asset.data else { return }
+        let newDate = hasDate ? captureDate : nil
+        let changed = asset.title != loadedTitle
+            || asset.caption != loadedCaption
+            || asset.notes != loadedBody
+            || newDate != loadedDate
+        guard changed else { return }
+        if let newData = MetadataService.edit(data: data,
+                                              title: asset.title,
+                                              caption: asset.caption,
+                                              body: asset.notes,
+                                              date: newDate) {
             asset.data = newData
-            sections = MetadataService.sections(from: newData)
-            metadataStatus = "Saved into the photo."
-        } else {
-            metadataStatus = "Couldn't write metadata to this file."
+            loadedTitle = asset.title; loadedCaption = asset.caption
+            loadedBody = asset.notes; loadedDate = newDate
         }
     }
 }

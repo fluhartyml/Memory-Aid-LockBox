@@ -64,17 +64,18 @@ struct MediaViewerView: View {
         }
     }
 
-    /// Title + Notes shown large and prominent directly under the photo (wide
-    /// layout only). Binds straight to the asset.
+    /// Title + Caption shown large and prominent directly under the photo (wide
+    /// layout only) — like a blog headline and preview. The full Body lives in the
+    /// details panel. Binds straight to the asset.
     private var prominentTitleNotes: some View {
         VStack(alignment: .leading, spacing: 8) {
             TextField("Title", text: $asset.title)
                 .font(.system(size: 24, weight: .bold))
                 .textFieldStyle(.plain)
-            TextField("Notes", text: $asset.notes, axis: .vertical)
+            TextField("Caption", text: $asset.caption, axis: .vertical)
                 .font(.system(size: 17))
                 .textFieldStyle(.plain)
-                .lineLimit(3...8)
+                .lineLimit(1...4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)

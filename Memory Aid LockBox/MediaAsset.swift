@@ -27,9 +27,14 @@ final class MediaAsset {
     /// Video length in seconds; 0 for photos.
     var durationSeconds: Double = 0
 
-    /// Per-item Title + Notes (roadmap 014c), editable in the media details.
-    /// Additive/defaulted for CloudKit; independent of the media's own metadata.
+    /// Photo text, three tiers like a blog post (all embedded in the image's XMP
+    /// so they export with the file — see MetadataService):
+    ///   title   → XMP dc:title       (Apple Photos "Title")   — the post title
+    ///   caption → XMP dc:description (Apple Photos "Caption")  — the short preview
+    ///   notes   → XMP malb:body                                — the full entry text
+    /// Additive/defaulted for CloudKit.
     var title: String = ""
+    var caption: String = ""
     var notes: String = ""
 
     /// The full-resolution media bytes, stored as an external file by SwiftData.

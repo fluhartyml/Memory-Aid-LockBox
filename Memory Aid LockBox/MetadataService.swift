@@ -53,48 +53,89 @@ enum MetadataService {
         return sections
     }
 
-    /// The current image description (TIFF) and capture date (EXIF), for editing.
-    static func editableFields(from data: Data) -> (description: String, date: Date?) {
-        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [String: Any]
-        else { return ("", nil) }
-        let tiff = props[kCGImagePropertyTIFFDictionary as String] as? [String: Any]
-        let exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any]
-        let desc = (tiff?[kCGImagePropertyTIFFImageDescription as String] as? String) ?? ""
+    // XMP homes for the three photo text tiers. dc:* is what Apple Photos reads
+    // for Title/Caption; the full body lives in a private namespace so it's
+    // unlimited and never collides with a standard field.
+    private static let dcNamespace = "http://purl.org/dc/elements/1.1/" as CFString
+    private static let dcPrefix = "dc" as CFString
+    private static let bodyNamespace = "http://memoryaidlockbox.app/xmp/1.0/" as CFString
+    private static let bodyPrefix = "malb" as CFString
+
+    /// The title (XMP dc:title), caption (XMP dc:description), full body
+    /// (XMP malb:body) and capture date (EXIF) embedded in the image. Falls back
+    /// to IPTC/TIFF for title/caption so a photo tagged by another app still
+    /// surfaces them.
+    static func editableFields(from data: Data) -> (title: String, caption: String, body: String, date: Date?) {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return ("", "", "", nil) }
+
+        var title = "", caption = "", body = ""
+        if let meta = CGImageSourceCopyMetadataAtIndex(src, 0, nil) {
+            if let t = CGImageMetadataCopyStringValueWithPath(meta, nil, "dc:title" as CFString) as String? { title = t }
+            else if let t = CGImageMetadataCopyStringValueWithPath(meta, nil, "dc:title[1]" as CFString) as String? { title = t }
+            if let c = CGImageMetadataCopyStringValueWithPath(meta, nil, "dc:description" as CFString) as String? { caption = c }
+            else if let c = CGImageMetadataCopyStringValueWithPath(meta, nil, "dc:description[1]" as CFString) as String? { caption = c }
+            if let b = CGImageMetadataCopyStringValueWithPath(meta, nil, "malb:body" as CFString) as String? { body = b }
+        }
+
+        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [String: Any]
+        if title.isEmpty || caption.isEmpty {
+            let iptc = props?[kCGImagePropertyIPTCDictionary as String] as? [String: Any]
+            let tiff = props?[kCGImagePropertyTIFFDictionary as String] as? [String: Any]
+            if title.isEmpty { title = (iptc?[kCGImagePropertyIPTCObjectName as String] as? String) ?? "" }
+            if caption.isEmpty {
+                caption = (iptc?[kCGImagePropertyIPTCCaptionAbstract as String] as? String)
+                    ?? (tiff?[kCGImagePropertyTIFFImageDescription as String] as? String) ?? ""
+            }
+        }
+
         var date: Date?
-        if let s = exif?[kCGImagePropertyExifDateTimeOriginal as String] as? String {
+        if let exif = props?[kCGImagePropertyExifDictionary as String] as? [String: Any],
+           let s = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String {
             let f = DateFormatter(); f.dateFormat = "yyyy:MM:dd HH:mm:ss"
             date = f.date(from: s)
         }
-        return (desc, date)
+        return (title, caption, body, date)
     }
 
-    /// Write a new description / capture date into the image, preserving every
-    /// other tag (deliberate user edit only — roadmap 014b). Returns new bytes,
-    /// or nil if the data isn't an editable image.
-    static func edit(data: Data, description: String?, date: Date?) -> Data? {
+    /// Embed the three photo text tiers + capture date into the image, preserving
+    /// every other tag (deliberate user edit only). Title → XMP dc:title, caption
+    /// → XMP dc:description (both read by Apple Photos as Title/Caption), full body
+    /// → XMP malb:body (private, unlimited). Written via CopyImageSource so the
+    /// pixels are copied, not re-compressed. Returns new bytes, or nil if the data
+    /// isn't an editable image.
+    static func edit(data: Data, title: String?, caption: String?, body: String?, date: Date?) -> Data? {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let type = CGImageSourceGetType(src)
         else { return nil }
 
-        var props = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [String: Any]) ?? [:]
+        // Start from the existing metadata so nothing else is dropped.
+        let meta = (CGImageSourceCopyMetadataAtIndex(src, 0, nil)).flatMap { CGImageMetadataCreateMutableCopy($0) }
+            ?? CGImageMetadataCreateMutable()
+        CGImageMetadataRegisterNamespaceForPrefix(meta, dcNamespace, dcPrefix, nil)
+        CGImageMetadataRegisterNamespaceForPrefix(meta, bodyNamespace, bodyPrefix, nil)
 
-        if let description {
-            var tiff = props[kCGImagePropertyTIFFDictionary as String] as? [String: Any] ?? [:]
-            tiff[kCGImagePropertyTIFFImageDescription as String] = description
-            props[kCGImagePropertyTIFFDictionary as String] = tiff
+        if let title {
+            CGImageMetadataSetValueWithPath(meta, nil, "dc:title" as CFString, title as CFString)
+        }
+        if let caption {
+            CGImageMetadataSetValueWithPath(meta, nil, "dc:description" as CFString, caption as CFString)
+        }
+        if let body {
+            CGImageMetadataSetValueWithPath(meta, nil, "malb:body" as CFString, body as CFString)
         }
         if let date {
             let f = DateFormatter(); f.dateFormat = "yyyy:MM:dd HH:mm:ss"
-            var exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any] ?? [:]
-            exif[kCGImagePropertyExifDateTimeOriginal as String] = f.string(from: date)
-            props[kCGImagePropertyExifDictionary as String] = exif
+            CGImageMetadataSetValueWithPath(meta, nil, "exif:DateTimeOriginal" as CFString, f.string(from: date) as CFString)
         }
 
         let out = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(out, type, 1, nil) else { return nil }
-        CGImageDestinationAddImageFromSource(dest, src, 0, props as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageDestinationMetadata: meta,
+            kCGImageDestinationMergeMetadata: true,
+        ]
+        var err: Unmanaged<CFError>?
+        guard CGImageDestinationCopyImageSource(dest, src, options as CFDictionary, &err) else { return nil }
         return out as Data
     }
 
