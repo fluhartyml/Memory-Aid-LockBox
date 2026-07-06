@@ -14,33 +14,59 @@ import UIKit
 struct MediaViewerView: View {
     let asset: MediaAsset
     @Environment(\.dismiss) private var dismiss
-    @State private var showDetails = false
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var hSize
+    #endif
+
+    /// Wide when there's room for a side panel — iPad, or an unfolded iPhone
+    /// Fold. Narrow (folded iPhone / compact) stacks. Drives the fold-adaptive
+    /// layout; see [[reference_iphone_fold_adaptive_layout]].
+    private var isWide: Bool {
+        #if os(iOS)
+        return hSize == .regular
+        #else
+        return true
+        #endif
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                content
+            Group {
+                if isWide {
+                    HStack(spacing: 0) {
+                        mediaArea
+                        Divider()
+                        MediaDetailsForm(asset: asset)
+                            .frame(width: 360)
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        mediaArea
+                            .frame(maxHeight: .infinity)
+                        Divider()
+                        MediaDetailsForm(asset: asset)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                         .font(.system(size: 18))
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showDetails = true } label: {
-                        Label("Details", systemImage: "info.circle")
-                    }
-                }
             }
-            .sheet(isPresented: $showDetails) {
-                MediaDetailsView(asset: asset)
-            }
-            #if os(iOS)
-            .toolbarBackground(.black, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            #endif
         }
+    }
+
+    /// The photo/video on black — details live in the adjacent panel now, so the
+    /// info button is gone.
+    private var mediaArea: some View {
+        ZStack {
+            Color.black
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: isWide ? [] : .bottom)
     }
 
     @ViewBuilder
