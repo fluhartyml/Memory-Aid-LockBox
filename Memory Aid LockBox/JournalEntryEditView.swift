@@ -134,8 +134,8 @@ struct JournalEntryEditView: View {
     private func headerThumb(_ data: Data) -> some View {
         #if canImport(UIKit)
         if let ui = UIImage(data: data) {
-            Image(uiImage: ui).resizable().scaledToFill()
-                .frame(maxWidth: .infinity).frame(height: 260)
+            Image(uiImage: ui).resizable().scaledToFit()
+                .frame(maxWidth: .infinity).frame(maxHeight: 500)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(alignment: .topTrailing) {
                     Button(role: .destructive) { headerImage = [] } label: {

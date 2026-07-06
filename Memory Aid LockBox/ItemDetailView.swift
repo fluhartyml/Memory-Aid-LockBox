@@ -1015,7 +1015,7 @@ private struct HeaderImageBanner: View {
     var onCommit: () -> Void
 
     @State private var dragAnchor: Double?
-    private let bannerHeight: CGFloat = 220
+    private let bannerHeight: CGFloat = 340
 
     var body: some View {
         GeometryReader { geo in
