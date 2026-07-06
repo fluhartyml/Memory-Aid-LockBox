@@ -44,6 +44,20 @@ struct AppointmentEditView: View {
         NavigationStack {
             Form {
                 Section {
+                    Button {
+                        fillFromPastedText()
+                    } label: {
+                        Label("Fill from pasted text", systemImage: "doc.on.clipboard")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                } footer: {
+                    Text("Paste a doctor's reminder text elsewhere, then tap this — it reads the clipboard and fills the fields, dropping the \"reply STOP\" noise.")
+                        .font(.system(size: 13))
+                }
+
+                Section {
                     field("Practice / office", $practice)
                     field("Provider (who it's with)", $provider)
                 } header: {
@@ -152,6 +166,23 @@ struct AppointmentEditView: View {
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {
         TextField(label, text: text).font(.system(size: 18))
+    }
+
+    /// Read the clipboard, parse an appointment reminder, and fill empty fields
+    /// (roadmap 025a — the same parser the Share Extension will use).
+    private func fillFromPastedText() {
+        #if os(iOS)
+        let pasted = UIPasteboard.general.string
+        #else
+        let pasted = NSPasteboard.general.string(forType: .string)
+        #endif
+        guard let pasted, !pasted.isEmpty else { return }
+        let parsed = AppointmentTextParser.parse(pasted)
+        if practice.isEmpty { practice = parsed.practice }
+        if address.isEmpty { address = parsed.address }
+        if phone.isEmpty { phone = parsed.phone }
+        if prep.isEmpty { prep = parsed.prep }
+        if let d = parsed.date { date = d }
     }
 
     // MARK: - Photos
