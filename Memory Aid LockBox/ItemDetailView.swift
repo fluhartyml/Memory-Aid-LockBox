@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import CoreLocation
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -53,7 +54,12 @@ struct ItemDetailView: View {
         item.isAppointment || item.folder?.template == .appointments
     }
 
+    private var isReceiptItem: Bool {
+        item.isReceipt || item.folder?.template == .receipts
+    }
+
     @State private var apptStatus: String?
+    @State private var receiptStatus: String?
     #if os(iOS)
     @State private var showPresentCard = false
     #endif
@@ -84,7 +90,7 @@ struct ItemDetailView: View {
 
                 // PIN / Code — not shown for contacts (no PIN) or cards (the card
                 // section groups its own PIN field).
-                if !isContactItem && !isCardItem && !isCodesItem && !isJournalItem && !isApptItem {
+                if !isContactItem && !isCardItem && !isCodesItem && !isJournalItem && !isApptItem && !isReceiptItem {
                     if !item.pin.isEmpty {
                         pinDisplaySection
                     }
@@ -99,6 +105,11 @@ struct ItemDetailView: View {
                 // Appointment fields + Add to Calendar / Reminders.
                 if isApptItem {
                     appointmentSection
+                }
+
+                // Receipt fields + line items + Make grocery list.
+                if isReceiptItem {
+                    receiptSection
                 }
 
                 // Login/credential fields (username/password/website) — above
@@ -385,6 +396,92 @@ struct ItemDetailView: View {
         apptStatus = ok
             ? (toReminders ? "Added to Reminders." : "Added to Calendar.")
             : "Couldn't add — check Calendar/Reminders access in Settings."
+    }
+
+    // MARK: - Receipt
+
+    private var receiptSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Receipt")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            contactField("Address", text: $item.receiptAddress, systemImage: "mappin.and.ellipse")
+            contactField("Phone", text: $item.receiptPhone, systemImage: "phone")
+            DatePicker("Date & time", selection: $item.receiptDate).font(.system(size: 16))
+
+            if !item.receiptItems.isEmpty {
+                Text("Items").font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
+                ForEach(item.receiptItems) { line in
+                    HStack {
+                        Text(line.name)
+                        Spacer()
+                        Text(line.price).foregroundStyle(.secondary)
+                    }
+                    .font(.system(size: 16))
+                }
+            }
+
+            Group {
+                receiptTotalRow("Subtotal", item.receiptSubtotal)
+                receiptTotalRow("Tax", item.receiptTax)
+                receiptTotalRow("Total", item.receiptTotal)
+            }
+            if !item.receiptPaymentType.isEmpty || !item.receiptCardLast4.isEmpty {
+                let last4 = item.receiptCardLast4.isEmpty ? "" : " ••\(item.receiptCardLast4)"
+                Text("Paid: \(item.receiptPaymentType)\(last4)")
+                    .font(.system(size: 15)).foregroundStyle(.secondary)
+            }
+
+            Button {
+                Task { await makeGroceryList() }
+            } label: {
+                Label("Make grocery list", systemImage: "cart.badge.plus")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, 4)
+            .disabled(item.receiptItems.isEmpty)
+
+            if let receiptStatus {
+                Text(receiptStatus).font(.system(size: 14)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func receiptTotalRow(_ label: String, _ value: String) -> some View {
+        Group {
+            if !value.isEmpty {
+                HStack {
+                    Text(label).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(value)
+                }
+                .font(.system(size: 16, weight: label == "Total" ? .semibold : .regular))
+            }
+        }
+    }
+
+    /// Roadmap 012/013/013a: dumb 1:1 mirror of the line items into a NEW
+    /// Reminders list named after the receipt header, with an arrive-here alarm
+    /// geocoded from the store address so it fires when you reach the store.
+    private func makeGroceryList() async {
+        let names = item.receiptItems.map(\.name).filter { !$0.isEmpty }
+        guard !names.isEmpty else { return }
+
+        let df = DateFormatter(); df.dateFormat = "MMM d"
+        let header = "\(item.title.isEmpty ? "Receipt" : item.title) — \(df.string(from: item.receiptDate))"
+
+        var coord: CLLocationCoordinate2D?
+        if !item.receiptAddress.isEmpty {
+            coord = try? await CLGeocoder().geocodeAddressString(item.receiptAddress).first?.location?.coordinate
+        }
+
+        let ok = await EventKitService.addReminderList(
+            named: header, items: names, location: coord, locationTitle: item.title)
+        receiptStatus = ok
+            ? "Grocery list \"\(header)\" added to Reminders\(coord == nil ? "" : " (reminds you at the store)")."
+            : "Couldn't add — check Reminders access in Settings."
     }
 
     // MARK: - Journal

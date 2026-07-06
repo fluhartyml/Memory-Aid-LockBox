@@ -84,6 +84,22 @@ final class VaultItem {
     var apptAddress: String = ""
     var apptPhone: String = ""
 
+    /// True when this item is a Receipt (roadmap 011). Store/merchant is `title`;
+    /// line items are a JSON array of {name, price} in `receiptItemsJSON` (a JSON
+    /// collection rather than a related model — same additive pattern the CRM log
+    /// uses). "Make grocery list" (012/013) mirrors those items 1:1 into a new
+    /// Reminders list. All defaulted for CloudKit.
+    var isReceipt: Bool = false
+    var receiptAddress: String = ""
+    var receiptPhone: String = ""
+    var receiptDate: Date = Date()
+    var receiptItemsJSON: String = ""
+    var receiptSubtotal: String = ""
+    var receiptTax: String = ""
+    var receiptTotal: String = ""
+    var receiptPaymentType: String = ""
+    var receiptCardLast4: String = ""
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {
