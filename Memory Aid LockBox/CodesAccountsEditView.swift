@@ -44,7 +44,7 @@ struct CodesAccountsEditView: View {
         NavigationStack {
             Form {
                 Section {
-                    field("Service name", $service)
+                    field("Account name", $service)
                 } header: {
                     Text("Account").font(.system(size: 16))
                 }
