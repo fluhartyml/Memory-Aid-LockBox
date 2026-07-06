@@ -51,6 +51,15 @@ final class VaultItem {
     var contactHours: String = ""
     var contactRelationship: String = ""
 
+    /// The FULL imported Apple Contacts card as a raw vCard (Apple's own lossless
+    /// format). When a contact is pulled in from Apple Contacts we stash the exact
+    /// vCard here so nothing is dropped — every phone/email/address with its label,
+    /// birthday, job, company, department, URLs, social profiles. The detail view
+    /// renders every field from this, and Share / Add-to-Contacts re-export it
+    /// verbatim so it lands back in Apple Contacts identically. Empty for a
+    /// hand-typed contact. Defaulted for CloudKit.
+    var contactVCard: String = ""
+
     /// True when this item is a payment/membership/ID card (drives the card UI).
     /// The card name is the item's `title`, the PIN reuses `pin`, and photos use
     /// `imageData` (front then back). All defaulted for CloudKit.

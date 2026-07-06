@@ -45,6 +45,10 @@ struct ContactEditView: View {
     // library; kept so a retake updates it instead of adding a duplicate.
     @State private var selfieMediaAsset: MediaAsset?
 
+    // The exact Apple vCard of a contact pulled from Apple Contacts — the lossless
+    // 1:1 copy. Stored on the item so every field survives and re-exports verbatim.
+    @State private var importedVCard = ""
+
     @State private var libraryItem: PhotosPickerItem?
     @State private var isReadingContact = false
     // Set when "Fill from image" launches the scanner, so the scan's result is
@@ -409,6 +413,11 @@ struct ContactEditView: View {
     /// Every property is guarded with `isKeyAvailable` so an un-fetched key can
     /// never throw.
     private func importContact(_ c: CNContact) {
+        // The lossless 1:1 copy: stash the exact vCard so every field is preserved
+        // and re-exports identically. The single fields below are just the primary
+        // values for the quick-edit UI + CRM; the full card renders from the vCard.
+        importedVCard = ContactCardService.vCardString(from: c) ?? ""
+
         let org = c.isKeyAvailable(CNContactOrganizationNameKey)
             ? c.organizationName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         var full = ""
@@ -442,9 +451,11 @@ struct ContactEditView: View {
             attachedImages.insert(thumb, at: 0)
         }
 
-        // The single-value fields hold the first phone/email/address/website; every
-        // other detail (extra numbers, birthday, job title, company) is captured
-        // into Notes so the import never silently drops data.
+        // Fallback ONLY when the vCard couldn't be serialized (rare): fold the
+        // extra numbers/birthday/job/company into Notes so nothing is silently
+        // dropped. When we have the full vCard (the normal case), the detail view
+        // shows every field, so we skip the Notes dump to keep Notes clean.
+        guard importedVCard.isEmpty else { return }
         var extras: [String] = []
         let title = c.isKeyAvailable(CNContactJobTitleKey) ? c.jobTitle : ""
         let company = (org != name) ? org : ""
@@ -669,6 +680,7 @@ struct ContactEditView: View {
         item.contactWebsite = isBusiness ? website : ""
         item.contactHours = isBusiness ? hours : ""
         item.contactRelationship = isBusiness ? "" : relationship
+        item.contactVCard = importedVCard
         item.imageData = attachedImages
         modelContext.insert(item)
     }

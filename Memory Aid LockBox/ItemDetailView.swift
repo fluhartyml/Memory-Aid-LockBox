@@ -639,6 +639,8 @@ struct ItemDetailView: View {
             }
 
             #if os(iOS)
+            fullContactCard
+
             if !item.imageData.isEmpty {
                 Button {
                     fillContactFromImage()
@@ -682,6 +684,49 @@ struct ItemDetailView: View {
         }
     }
 
+    #if os(iOS)
+    /// The complete imported Apple Contacts card — every phone/email/address (with
+    /// labels), birthday, job, company, URLs, etc., rendered read-only from the
+    /// stored vCard. Only appears for contacts pulled in from Apple Contacts.
+    @ViewBuilder
+    private var fullContactCard: some View {
+        let rows = item.contactVCard.isEmpty ? [] : ContactCardService.detailRows(fromVCard: item.contactVCard)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Full contact card")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(rows) { row in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: row.systemImage)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.label)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Text(row.value)
+                                .font(.system(size: 17))
+                                .textSelection(.enabled)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                Text("Imported from Apple Contacts — every field preserved, and it exports back identically.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.top, 4)
+        }
+    }
+    #endif
+
     private func contactField(_ label: String, text: Binding<String>, systemImage: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
@@ -721,9 +766,16 @@ struct ItemDetailView: View {
         }
     }
 
-    /// Build a system contact from this item's fields.
+    /// Build a system contact. Prefers the full imported vCard (1:1 — every field
+    /// intact) so "Add to My Contacts" restores the complete card; falls back to
+    /// the vault's primary fields for a hand-typed contact.
     private func buildContact() -> CNMutableContact {
-        ContactCardService.makeContact(
+        if !item.contactVCard.isEmpty,
+           let parsed = ContactCardService.contact(fromVCard: item.contactVCard),
+           let mutable = parsed.mutableCopy() as? CNMutableContact {
+            return mutable
+        }
+        return ContactCardService.makeContact(
             name: item.title,
             phone: item.contactPhone,
             email: item.contactEmail,
@@ -733,9 +785,13 @@ struct ItemDetailView: View {
         )
     }
 
-    /// Write the contact to a temp .vcf and present the share sheet.
+    /// Write the contact to a temp .vcf and present the share sheet. Uses the stored
+    /// vCard verbatim when present (perfect 1:1 round-trip), else builds from fields.
     private func shareContact() {
-        guard let url = ContactCardService.vCardFileURL(for: buildContact(), name: item.title) else { return }
+        let url = item.contactVCard.isEmpty
+            ? ContactCardService.vCardFileURL(for: buildContact(), name: item.title)
+            : ContactCardService.vCardFileURL(fromVCard: item.contactVCard, name: item.title)
+        guard let url else { return }
         contactShareFile = ShareableFile(url: url)
     }
 

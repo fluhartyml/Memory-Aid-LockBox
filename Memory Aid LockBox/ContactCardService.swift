@@ -13,6 +13,14 @@ import SwiftUI
 import Contacts
 import ContactsUI
 
+/// One displayable line of an imported contact card (icon · label · value).
+struct ContactDetailRow: Identifiable {
+    let id = UUID()
+    let systemImage: String
+    let label: String
+    let value: String
+}
+
 enum ContactCardService {
     /// Build a system contact from the vault item's fields.
     /// - For a PERSON, `name` splits into given/family.
@@ -55,9 +63,95 @@ enum ContactCardService {
     /// Serialize a contact to a temporary `.vcf` file for the share sheet.
     static func vCardFileURL(for contact: CNContact, name: String) -> URL? {
         guard let data = try? CNContactVCardSerialization.data(with: [contact]) else { return nil }
+        return writeVCard(data, name: name)
+    }
+
+    /// Write already-serialized vCard TEXT to a temp `.vcf` (verbatim 1:1 export of
+    /// a stored imported card — nothing rebuilt, so it round-trips exactly).
+    static func vCardFileURL(fromVCard vcard: String, name: String) -> URL? {
+        guard let data = vcard.data(using: .utf8) else { return nil }
+        return writeVCard(data, name: name)
+    }
+
+    private static func writeVCard(_ data: Data, name: String) -> URL? {
         let safe = name.isEmpty ? "Contact" : name.replacingOccurrences(of: "/", with: "-")
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(safe).vcf")
         do { try data.write(to: url); return url } catch { return nil }
+    }
+
+    /// Serialize ANY picked contact to vCard text (Apple's exact format). Best-effort:
+    /// nil if the contact lacks a key vCard serialization requires.
+    static func vCardString(from contact: CNContact) -> String? {
+        guard let data = try? CNContactVCardSerialization.data(with: [contact]) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Parse stored vCard text back into a CNContact (for display / re-export).
+    static func contact(fromVCard vcard: String) -> CNContact? {
+        guard let data = vcard.data(using: .utf8),
+              let contacts = try? CNContactVCardSerialization.contacts(with: data) else { return nil }
+        return contacts.first
+    }
+
+    /// Every human-meaningful field of a stored vCard, ordered for display. Each
+    /// property is `isKeyAvailable`-guarded so a key the vCard didn't carry can
+    /// never throw. Multi-value fields (all phones/emails/addresses/URLs) are each
+    /// listed with their label — the whole point of the 1:1 copy.
+    static func detailRows(fromVCard vcard: String) -> [ContactDetailRow] {
+        guard let c = contact(fromVCard: vcard) else { return [] }
+        var rows: [ContactDetailRow] = []
+        func add(_ image: String, _ label: String, _ value: String) {
+            let v = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !v.isEmpty else { return }
+            rows.append(ContactDetailRow(systemImage: image, label: label, value: v))
+        }
+        if c.isKeyAvailable(CNContactOrganizationNameKey) { add("building.2", "Company", c.organizationName) }
+        if c.isKeyAvailable(CNContactJobTitleKey) { add("briefcase", "Title", c.jobTitle) }
+        if c.isKeyAvailable(CNContactDepartmentNameKey) { add("person.3", "Department", c.departmentName) }
+        if c.isKeyAvailable(CNContactPhoneNumbersKey) {
+            for p in c.phoneNumbers { add("phone", readableLabel(p.label, fallback: "phone"), p.value.stringValue) }
+        }
+        if c.isKeyAvailable(CNContactEmailAddressesKey) {
+            for e in c.emailAddresses { add("envelope", readableLabel(e.label, fallback: "email"), e.value as String) }
+        }
+        if c.isKeyAvailable(CNContactPostalAddressesKey) {
+            for a in c.postalAddresses {
+                let s = CNPostalAddressFormatter.string(from: a.value, style: .mailingAddress)
+                    .replacingOccurrences(of: "\n", with: ", ")
+                add("mappin.and.ellipse", readableLabel(a.label, fallback: "address"), s)
+            }
+        }
+        if c.isKeyAvailable(CNContactUrlAddressesKey) {
+            for u in c.urlAddresses { add("globe", readableLabel(u.label, fallback: "url"), u.value as String) }
+        }
+        if c.isKeyAvailable(CNContactSocialProfilesKey) {
+            for s in c.socialProfiles {
+                add("at", s.value.service ?? readableLabel(s.label, fallback: "social"), s.value.username)
+            }
+        }
+        if c.isKeyAvailable(CNContactInstantMessageAddressesKey) {
+            for m in c.instantMessageAddresses {
+                add("message", m.value.service ?? readableLabel(m.label, fallback: "message"), m.value.username)
+            }
+        }
+        if c.isKeyAvailable(CNContactBirthdayKey), let b = c.birthday, let d = b.date {
+            let f = DateFormatter(); f.dateFormat = (b.year == nil) ? "MMMM d" : "MMMM d, yyyy"
+            add("gift", "Birthday", f.string(from: d))
+        }
+        if c.isKeyAvailable(CNContactDatesKey) {
+            for dv in c.dates where dv.value.date != nil {
+                let f = DateFormatter(); f.dateStyle = .medium
+                add("calendar", readableLabel(dv.label, fallback: "date"), f.string(from: dv.value.date!))
+            }
+        }
+        if c.isKeyAvailable(CNContactNoteKey) { add("note.text", "Note", c.note) }
+        return rows
+    }
+
+    /// Human-readable label for a CNLabeledValue (e.g. "home", "work", "mobile").
+    static func readableLabel(_ label: String?, fallback: String) -> String {
+        guard let label, !label.isEmpty else { return fallback }
+        return CNLabeledValue<NSString>.localizedString(forLabel: label)
     }
 
     /// Split "First Last" (or "First Middle Last") into given/family names.
