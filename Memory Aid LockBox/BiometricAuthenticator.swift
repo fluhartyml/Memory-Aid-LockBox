@@ -17,9 +17,11 @@ enum BiometricAuthenticator {
         let context = LAContext()
         var error: NSError?
 
-        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-            return await evaluate(context, policy: .deviceOwnerAuthenticationWithBiometrics, reason: reason)
-        }
+        // Use .deviceOwnerAuthentication (biometrics FIRST, then automatic passcode
+        // fallback) rather than .deviceOwnerAuthenticationWithBiometrics. The
+        // biometrics-only policy shows an "Enter Passcode" button after two failed
+        // Face ID attempts but can't present a keypad — the user gets stuck with no
+        // way in. .deviceOwnerAuthentication lets the system show its passcode pad.
         if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
             return await evaluate(context, policy: .deviceOwnerAuthentication, reason: reason)
         }
