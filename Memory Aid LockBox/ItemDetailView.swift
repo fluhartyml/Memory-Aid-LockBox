@@ -78,10 +78,17 @@ struct ItemDetailView: View {
                 // across the top of the note. "Set as Header" on any other photo
                 // moves it here.
                 if let heroData = item.imageData.first {
-                    HeaderImageBanner(imageData: heroData, bias: $item.headerVerticalBias) {
-                        item.dateModified = Date()
+                    if isCardItem {
+                        // A card scan must be shown whole, first thing — never
+                        // cropped into a banner. Other pictures list at the end.
+                        cardHeroImage(heroData)
+                            .contextMenu { heroMenu(for: heroData) }
+                    } else {
+                        HeaderImageBanner(imageData: heroData, bias: $item.headerVerticalBias) {
+                            item.dateModified = Date()
+                        }
+                        .contextMenu { heroMenu(for: heroData) }
                     }
-                    .contextMenu { heroMenu(for: heroData) }
                 }
 
                 // Title
@@ -835,6 +842,32 @@ struct ItemDetailView: View {
     }
 
     // MARK: - Header / hero image
+
+    /// The first card attachment shown whole (not cropped) at the top of the
+    /// detail. Tap to view full size.
+    @ViewBuilder
+    private func cardHeroImage(_ data: Data) -> some View {
+        #if canImport(UIKit)
+        if let ui = UIImage(data: data) {
+            Image(uiImage: ui)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 420)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .onTapGesture { viewingImage = data }
+        }
+        #else
+        if let ns = NSImage(data: data) {
+            Image(nsImage: ns)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 420)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        #endif
+    }
 
     @ViewBuilder
     private func heroMenu(for data: Data) -> some View {
