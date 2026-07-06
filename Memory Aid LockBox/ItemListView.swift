@@ -113,6 +113,7 @@ struct ItemListView: View {
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddItem) {
             CustomNotesEditView(folder: folder, initialImages: $scannedPages)
+                .holdsVaultActivity()
                 .onDisappear {
                     scannedPages = []
                 }
@@ -120,6 +121,7 @@ struct ItemListView: View {
         #else
         .sheet(isPresented: $showAddItem) {
             CustomNotesEditView(folder: folder, initialImages: $scannedPages)
+                .holdsVaultActivity()
                 .onDisappear {
                     scannedPages = []
                 }
@@ -137,46 +139,56 @@ struct ItemListView: View {
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddCard) {
             CardEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #else
         .sheet(isPresented: $showAddCard) {
             CardEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddCodes) {
             CodesAccountsEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #else
         .sheet(isPresented: $showAddCodes) {
             CodesAccountsEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddJournal) {
             JournalEntryEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #else
         .sheet(isPresented: $showAddJournal) {
             JournalEntryEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddAppt) {
             AppointmentEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #else
         .sheet(isPresented: $showAddAppt) {
             AppointmentEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddReceipt) {
             ReceiptEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #else
         .sheet(isPresented: $showAddReceipt) {
             ReceiptEditView(folder: folder)
+                .holdsVaultActivity()
         }
         #endif
         #if os(iOS)
