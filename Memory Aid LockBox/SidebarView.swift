@@ -138,7 +138,7 @@ struct SidebarView: View {
                 // flipping the flag inside the menu's dismissal gets swallowed on iPad.
                 DispatchQueue.main.async { showResetVaultConfirm = true }
             } label: {
-                Label("Reset Vault (dev)", systemImage: "trash")
+                Label("Reset Vault", systemImage: "trash")
             }
 #endif
         } label: {
