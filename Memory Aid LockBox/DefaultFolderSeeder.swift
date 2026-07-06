@@ -136,6 +136,29 @@ final class DefaultFolderSeeder {
         print("🔖 [LockBox] Recorded vault as set-up (seed-once marker).")
     }
 
+#if DEBUG
+    /// DEV ONLY — wipe the ENTIRE vault (folders, items, media) *and* the
+    /// seed-once marker, then reseed the starter folders. Reproduces a genuine
+    /// first-install end state on a device that has already synced this vault.
+    ///
+    /// Why this exists: the seed-once marker lives in CloudKit, so deleting and
+    /// reinstalling the app can't clear it — the marker syncs back down and the
+    /// starters never reseed. This is the only way to exercise the first-run seed
+    /// path on an already-synced device/Apple ID. Compiled out of release builds,
+    /// so it can never reach a shipping app or a real vault (mom's included).
+    func devResetAndReseed(container: ModelContainer) {
+        let context = container.mainContext
+        for item in (try? context.fetch(FetchDescriptor<VaultItem>())) ?? [] { context.delete(item) }
+        for media in (try? context.fetch(FetchDescriptor<MediaAsset>())) ?? [] { context.delete(media) }
+        for folder in (try? context.fetch(FetchDescriptor<Folder>())) ?? [] { context.delete(folder) }
+        for marker in (try? context.fetch(FetchDescriptor<VaultMetadata>())) ?? [] { context.delete(marker) }
+        try? context.save()
+        seedDefaults(context)
+        markSeeded(context)
+        print("🧪 [LockBox] DEV reset — vault wiped (incl. seed-once marker) and reseeded to first-run state.")
+    }
+#endif
+
     // MARK: - Self-healing dedup
 
     /// Collapse duplicate STARTER folders created by the seed-vs-import race.

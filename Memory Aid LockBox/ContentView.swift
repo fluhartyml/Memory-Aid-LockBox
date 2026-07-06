@@ -28,6 +28,9 @@ struct VaultTabView: View {
     @State private var showAsk = false
     @State private var searchText = ""
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    // The reset button + dialog are DEBUG-gated; the state is always declared so
+    // SidebarView's binding stays valid in release builds.
+    @State private var showResetVaultConfirm = false
 
     var body: some View {
         // Two-column split: folders sidebar + a content column that pushes the
@@ -39,36 +42,14 @@ struct VaultTabView: View {
             SidebarView(
                 folders: folders,
                 selectedFolder: $selectedFolder,
-                showAddFolder: $showAddFolder
+                showAddFolder: $showAddFolder,
+                showAbout: $showAbout,
+                showSettings: $showSettings,
+                columnVisibility: $columnVisibility,
+                showResetVaultConfirm: $showResetVaultConfirm
             )
-            .toolbar {
-                // About + Settings live in a single menu so the narrow sidebar
-                // column doesn't overflow its toolbar into a ">>" chevron.
-                ToolbarItem(placement: aboutButtonPlacement) {
-                    Menu {
-                        Button {
-                            showAbout = true
-                        } label: {
-                            Label("About", systemImage: "info.circle")
-                        }
-                        Button {
-                            // Settings governs the vault's security, so opening it
-                            // requires its own Face ID challenge.
-                            Task {
-                                if await BiometricAuthenticator.authenticate(reason: "Open Settings") {
-                                    showSettings = true
-                                }
-                            }
-                        } label: {
-                            Label("Settings", systemImage: "gearshape")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
             // Give the folders column enough width that names like "Photos"/"Notes"
-            // don't truncate and its toolbar button doesn't spill into a ">>".
+            // don't truncate.
             .navigationSplitViewColumnWidth(min: 240, ideal: 280)
         } detail: {
             NavigationStack {
@@ -110,6 +91,22 @@ struct VaultTabView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+#if DEBUG
+        .confirmationDialog(
+            "Reset the entire vault?",
+            isPresented: $showResetVaultConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Wipe & Reseed", role: .destructive) {
+                selectedItem = nil
+                selectedFolder = nil
+                DefaultFolderSeeder.shared.devResetAndReseed(container: modelContext.container)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("DEV ONLY: deletes every folder, item, and photo — including the seed-once marker in iCloud — then recreates the starter folders, reproducing a genuine first install.")
+        }
+#endif
         // Switching folders drops any pushed item detail so we don't linger on an
         // item that belongs to the folder we just left.
         .onChange(of: selectedFolder) { _, _ in
@@ -176,11 +173,4 @@ struct VaultTabView: View {
         }
     }
 
-    private var aboutButtonPlacement: ToolbarItemPlacement {
-        #if os(iOS)
-        .topBarLeading
-        #else
-        .navigation
-        #endif
-    }
 }
