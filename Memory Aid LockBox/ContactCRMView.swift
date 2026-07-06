@@ -69,6 +69,17 @@ struct ContactCRMView: View {
                 }
                 .buttonStyle(.plain)
             }
+            // Quick-add: one tap logs an interaction right now (dated now, no note).
+            // The "Log" button above still opens the full sheet for a note or a
+            // back-dated entry.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    quickLogButton("call", "Called", "phone")
+                    quickLogButton("text", "Texted", "message")
+                    quickLogButton("email", "Emailed", "envelope")
+                    quickLogButton("met", "Met", "person.2")
+                }
+            }
             if item.interactions.isEmpty {
                 Text("No interactions logged yet.").font(.system(size: 14)).foregroundStyle(.secondary)
             } else {
@@ -96,6 +107,17 @@ struct ContactCRMView: View {
         .sheet(isPresented: $showAddInteraction) {
             AddInteractionSheet { item.addInteraction($0) }
         }
+    }
+
+    /// A single one-tap quick-log button (logs `type` at the current moment).
+    private func quickLogButton(_ type: String, _ label: String, _ image: String) -> some View {
+        Button {
+            item.addInteraction(Interaction(type: type))
+        } label: {
+            Label(label, systemImage: image).font(.system(size: 14, weight: .medium))
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
     }
 
     private func icon(for type: String) -> String {
