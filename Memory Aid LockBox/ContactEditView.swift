@@ -441,6 +441,52 @@ struct ContactEditView: View {
         } else if c.isKeyAvailable(CNContactThumbnailImageDataKey), let thumb = c.thumbnailImageData {
             attachedImages.insert(thumb, at: 0)
         }
+
+        // The single-value fields hold the first phone/email/address/website; every
+        // other detail (extra numbers, birthday, job title, company) is captured
+        // into Notes so the import never silently drops data.
+        var extras: [String] = []
+        let title = c.isKeyAvailable(CNContactJobTitleKey) ? c.jobTitle : ""
+        let company = (org != name) ? org : ""
+        let role = [title, company].filter { !$0.isEmpty }.joined(separator: " · ")
+        if !role.isEmpty { extras.append(role) }
+        if c.isKeyAvailable(CNContactPhoneNumbersKey) {
+            for p in c.phoneNumbers.dropFirst() {
+                extras.append("Phone (\(contactLabel(p.label))): \(p.value.stringValue)")
+            }
+        }
+        if c.isKeyAvailable(CNContactEmailAddressesKey) {
+            for e in c.emailAddresses.dropFirst() {
+                extras.append("Email (\(contactLabel(e.label))): \(e.value as String)")
+            }
+        }
+        if c.isKeyAvailable(CNContactPostalAddressesKey) {
+            for a in c.postalAddresses.dropFirst() {
+                let s = CNPostalAddressFormatter.string(from: a.value, style: .mailingAddress)
+                    .replacingOccurrences(of: "\n", with: ", ")
+                extras.append("Address (\(contactLabel(a.label))): \(s)")
+            }
+        }
+        if c.isKeyAvailable(CNContactUrlAddressesKey) {
+            for u in c.urlAddresses.dropFirst() {
+                extras.append("Website (\(contactLabel(u.label))): \(u.value as String)")
+            }
+        }
+        if c.isKeyAvailable(CNContactBirthdayKey), let comps = c.birthday, let d = comps.date {
+            let f = DateFormatter()
+            f.dateFormat = (comps.year == nil) ? "MMMM d" : "MMMM d, yyyy"
+            extras.append("Birthday: \(f.string(from: d))")
+        }
+        if !extras.isEmpty {
+            let block = "Imported details:\n" + extras.joined(separator: "\n")
+            notes = notes.isEmpty ? block : notes + "\n\n" + block
+        }
+    }
+
+    /// Human-readable label for a CNLabeledValue (e.g. "home", "work", "mobile").
+    private func contactLabel(_ label: String?) -> String {
+        guard let label, !label.isEmpty else { return "other" }
+        return CNLabeledValue<NSString>.localizedString(forLabel: label)
     }
     #endif
 
