@@ -30,13 +30,30 @@ struct JournalEntryEditView: View {
         NavigationStack {
             Form {
                 Section {
-                    DatePicker("Date & time", selection: $entryDate)
-                        .font(.system(size: 17))
+                    // Group the pickers next to the label instead of pushing them
+                    // to the far right of a wide row. One DatePicker already covers
+                    // year/month/day (tap the date chip) plus time — no separate
+                    // pickers needed.
+                    HStack(spacing: 12) {
+                        Text("Date & time")
+                        DatePicker("Date & time", selection: $entryDate)
+                            .labelsHidden()
+                        Spacer()
+                    }
+                    .font(.system(size: 17))
                 } header: {
                     Text("When").font(.system(size: 16))
                 } footer: {
                     Text("Stamped to the second. Entries sort newest-first by this date — editing later won't move it.")
                         .font(.system(size: 13))
+                }
+
+                // Hero image above the title, separating it from the date.
+                Section {
+                    if let data = headerImage.first { headerThumb(data) }
+                    captureButtons
+                } header: {
+                    Text("Header image").font(.system(size: 16))
                 }
 
                 Section {
@@ -51,13 +68,6 @@ struct JournalEntryEditView: View {
                         .frame(minHeight: 240)
                 } header: {
                     Text("Body").font(.system(size: 16))
-                }
-
-                Section {
-                    if let data = headerImage.first { headerThumb(data) }
-                    captureButtons
-                } header: {
-                    Text("Header image").font(.system(size: 16))
                 }
             }
             #if os(macOS)
