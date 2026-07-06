@@ -101,12 +101,12 @@ struct CardEditView: View {
 
                 Section {
                     if !attachedImages.isEmpty { imageArea }
-                    fillFromImageButton
-                    captureButtons
+                    scanCardButton
+                    addPhotoButtons
                 } header: {
-                    Text("Front / Back Photo").font(.system(size: 16))
+                    Text("Card Photos").font(.system(size: 16))
                 } footer: {
-                    Text("\"Fill from image\" reads every side on-device — scan both the front and the back (the number can be on either face). It fills the card number, expiry, and security codes (CVN). Verify them — small or embossed print scans imperfectly.")
+                    Text("Scan Card reads both sides on-device and fills the number, expiry, and security codes for you. Or add a photo manually. Verify the fields — small or embossed print scans imperfectly.")
                         .font(.system(size: 13))
                 }
             }
@@ -207,13 +207,13 @@ struct CardEditView: View {
         #endif
     }
 
-    private var captureButtons: some View {
+    /// Manual "add a photo" options, secondary to Scan Card. No separate "Scan"
+    /// button — scanning is the primary action above and it also fills the fields.
+    private var addPhotoButtons: some View {
         HStack(spacing: 28) {
+            Text("or add a photo:").font(.system(size: 13)).foregroundStyle(.secondary)
             #if os(iOS)
-            captureButton("Scan", "doc.viewfinder") { activeSheet = .scanner }
             captureButton("Camera", "camera") { activeSheet = .camera }
-            #else
-            captureButton("Scan", "scanner") { showScannerMac = true }
             #endif
             PhotosPicker(selection: $libraryItem, matching: .images) {
                 captureLabel("Library", "photo.on.rectangle")
@@ -236,7 +236,9 @@ struct CardEditView: View {
         .foregroundStyle(Color.accentColor)
     }
 
-    private var fillFromImageButton: some View {
+    /// The one primary action: scan the card. It captures the photo(s) AND fills
+    /// the fields from them — Scan and "Fill from image" are the same button now.
+    private var scanCardButton: some View {
         Button {
             pendingFillAfterScan = true
             #if os(iOS)
@@ -245,11 +247,18 @@ struct CardEditView: View {
             showScannerMac = true
             #endif
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 if isReading { ProgressView() }
-                else { Image(systemName: "text.viewfinder").font(.system(size: 18)) }
-                Text(isReading ? "Reading…" : "Fill from image").font(.system(size: 16, weight: .semibold))
+                else { Image(systemName: "doc.viewfinder").font(.system(size: 22)) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isReading ? "Reading…" : "Scan Card")
+                        .font(.system(size: 17, weight: .semibold))
+                    Text("Front & back — fills the fields for you")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Spacer()
             }
+            .padding(.vertical, 6)
         }
         .buttonStyle(.plain).foregroundStyle(Color.accentColor).disabled(isReading)
     }
