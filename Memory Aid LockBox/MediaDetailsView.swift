@@ -19,7 +19,13 @@ import SwiftUI
 /// The reusable details Form (Title/Notes + editable metadata + EXIF list).
 /// No navigation chrome — the container supplies it.
 struct MediaDetailsForm: View {
+    /// `all` = Title/Notes + metadata (used inline on narrow screens and in the
+    /// standalone sheet). `metadataOnly` = editable metadata + EXIF, used in the
+    /// wide iPad panel where Title/Notes live prominently below the photo instead.
+    enum Mode { case all, metadataOnly }
+
     @Bindable var asset: MediaAsset
+    var mode: Mode = .all
 
     @State private var description = ""
     @State private var captureDate = Date()
@@ -31,16 +37,18 @@ struct MediaDetailsForm: View {
 
     var body: some View {
         Form {
-            Section {
-                TextField("Title", text: $asset.title).font(.system(size: 17))
-                TextEditor(text: $asset.notes)
-                    .font(.system(size: 16))
-                    .frame(minHeight: 80)
-            } header: {
-                Text("Title & Notes").font(.system(size: 15))
-            } footer: {
-                Text("Stored on this item in the vault — separate from the file's own metadata.")
-                    .font(.system(size: 12))
+            if mode == .all {
+                Section {
+                    TextField("Title", text: $asset.title).font(.system(size: 17))
+                    TextEditor(text: $asset.notes)
+                        .font(.system(size: 16))
+                        .frame(minHeight: 80)
+                } header: {
+                    Text("Title & Notes").font(.system(size: 15))
+                } footer: {
+                    Text("Stored on this item in the vault — separate from the file's own metadata.")
+                        .font(.system(size: 12))
+                }
             }
 
             if isPhoto {

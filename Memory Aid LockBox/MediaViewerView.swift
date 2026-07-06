@@ -12,7 +12,7 @@ import UIKit
 #endif
 
 struct MediaViewerView: View {
-    let asset: MediaAsset
+    @Bindable var asset: MediaAsset
     @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var hSize
@@ -34,17 +34,23 @@ struct MediaViewerView: View {
             Group {
                 if isWide {
                     HStack(spacing: 0) {
-                        mediaArea
+                        // Left: photo with Title/Notes prominent right beneath it.
+                        VStack(spacing: 0) {
+                            mediaArea
+                            prominentTitleNotes
+                        }
                         Divider()
-                        MediaDetailsForm(asset: asset)
+                        // Right: the rest of the data (editable metadata + EXIF).
+                        MediaDetailsForm(asset: asset, mode: .metadataOnly)
                             .frame(width: 360)
                     }
                 } else {
+                    // Narrow: photo on top, everything inline below.
                     VStack(spacing: 0) {
                         mediaArea
                             .frame(maxHeight: .infinity)
                         Divider()
-                        MediaDetailsForm(asset: asset)
+                        MediaDetailsForm(asset: asset, mode: .all)
                             .frame(maxHeight: .infinity)
                     }
                 }
@@ -56,6 +62,25 @@ struct MediaViewerView: View {
                 }
             }
         }
+    }
+
+    /// Title + Notes shown large and prominent directly under the photo (wide
+    /// layout only). Binds straight to the asset.
+    private var prominentTitleNotes: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Title", text: $asset.title)
+                .font(.system(size: 24, weight: .bold))
+                .textFieldStyle(.plain)
+            TextField("Notes", text: $asset.notes, axis: .vertical)
+                .font(.system(size: 17))
+                .textFieldStyle(.plain)
+                .lineLimit(3...8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        #if os(iOS)
+        .background(Color(.secondarySystemBackground))
+        #endif
     }
 
     /// The photo/video on black — details live in the adjacent panel now, so the
