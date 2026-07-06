@@ -56,6 +56,15 @@ final class VaultItem {
     var cardTypeRaw: String = ""
     var cardBarcode: String = ""
 
+    /// True when this item is a login/credential (Codes / Accounts folder,
+    /// roadmap 007). The service name is the item's `title`; the free-form
+    /// `notes` doubles as the "Notes / 2FA" field (backup/recovery codes). All
+    /// defaulted for CloudKit; empty on every other item type.
+    var isCodesAccount: Bool = false
+    var codeUsername: String = ""
+    var codePassword: String = ""
+    var codeWebsite: String = ""
+
     var folder: Folder?
 
     init(title: String, notes: String = "", pin: String = "", folder: Folder? = nil) {

@@ -40,6 +40,10 @@ struct ItemDetailView: View {
     private var isCardItem: Bool {
         item.isCard || item.folder?.template == .cards
     }
+
+    private var isCodesItem: Bool {
+        item.isCodesAccount || item.folder?.template == .codesAccounts
+    }
     #if os(iOS)
     @State private var showPresentCard = false
     #endif
@@ -70,11 +74,17 @@ struct ItemDetailView: View {
 
                 // PIN / Code — not shown for contacts (no PIN) or cards (the card
                 // section groups its own PIN field).
-                if !isContactItem && !isCardItem {
+                if !isContactItem && !isCardItem && !isCodesItem {
                     if !item.pin.isEmpty {
                         pinDisplaySection
                     }
                     pinEditorSection
+                }
+
+                // Login/credential fields (username/password/website) — above
+                // Notes so "Notes / 2FA" reads as the recovery-codes home.
+                if isCodesItem {
+                    codesSection
                 }
 
                 // Notes
@@ -238,7 +248,7 @@ struct ItemDetailView: View {
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Notes")
+            Text(isCodesItem ? "Notes / 2FA" : "Notes")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
@@ -285,6 +295,20 @@ struct ItemDetailView: View {
                 .padding(.top, 4)
             }
             #endif
+        }
+    }
+
+    // MARK: - Codes / Accounts
+
+    private var codesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Account")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            contactField("Username / email", text: $item.codeUsername, systemImage: "person")
+            contactField("Password", text: $item.codePassword, systemImage: "key")
+            contactField("Website URL", text: $item.codeWebsite, systemImage: "globe")
         }
     }
 

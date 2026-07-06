@@ -18,6 +18,7 @@ struct ItemListView: View {
     @State private var showAddItem = false
     @State private var showAddContact = false
     @State private var showAddCard = false
+    @State private var showAddCodes = false
     @State private var showScanner = false
     @State private var showPhotoPicker = false
     @State private var scannedPages: [Data] = []
@@ -103,6 +104,15 @@ struct ItemListView: View {
         }
         #endif
         #if os(iOS)
+        .fullScreenCover(isPresented: $showAddCodes) {
+            CodesAccountsEditView(folder: folder)
+        }
+        #else
+        .sheet(isPresented: $showAddCodes) {
+            CodesAccountsEditView(folder: folder)
+        }
+        #endif
+        #if os(iOS)
         .sheet(isPresented: $showScanner, onDismiss: {
             if !scannedPages.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -149,10 +159,11 @@ struct ItemListView: View {
         // built. Photos never reaches here — ContentView routes it to the media
         // library — but it's handled for completeness.
         switch folder.template {
-        case .contacts: showAddContact = true
-        case .cards:    showAddCard = true
-        case .photos:   showPhotoPicker = true
-        default:        showAddItem = true
+        case .contacts:      showAddContact = true
+        case .cards:         showAddCard = true
+        case .codesAccounts: showAddCodes = true
+        case .photos:        showPhotoPicker = true
+        default:             showAddItem = true
         }
     }
 
