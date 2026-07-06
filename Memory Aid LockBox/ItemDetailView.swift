@@ -84,7 +84,10 @@ struct ItemDetailView: View {
                         cardHeroImage(heroData)
                             .contextMenu { heroMenu(for: heroData) }
                     } else {
-                        HeaderImageBanner(imageData: heroData, bias: $item.headerVerticalBias) {
+                        HeaderImageBanner(imageData: heroData,
+                                          bias: $item.headerVerticalBias,
+                                          hBias: $item.headerHorizontalBias,
+                                          zoom: $item.headerZoom) {
                             item.dateModified = Date()
                         }
                         .contextMenu { heroMenu(for: heroData) }
@@ -1011,18 +1014,27 @@ struct ItemDetailView: View {
 /// 0 = show the top, 0.5 = centered, 1 = show the bottom.
 private struct HeaderImageBanner: View {
     let imageData: Data
-    @Binding var bias: Double
+    @Binding var bias: Double            // vertical: 0 top … 1 bottom
+    @Binding var hBias: Double           // horizontal: 0 left … 1 right
+    @Binding var zoom: Double            // extra scale on top of fill (>= 1)
     var onCommit: () -> Void
 
-    @State private var dragAnchor: Double?
-    private let bannerHeight: CGFloat = 340
+    @State private var dragAnchor: CGPoint?
+    @State private var zoomAnchor: Double?
+    private let bannerHeight: CGFloat = 380
+    private let maxZoom: Double = 4
 
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let size = decodedSize
-            let scale = max(width / size.width, bannerHeight / size.height)
-            let overflow = max(0, size.height * scale - bannerHeight)
+            // Fill the banner, then apply the user's pinch zoom on top.
+            let fill = max(width / size.width, bannerHeight / size.height)
+            let scale = fill * max(1, zoom)
+            let scaledW = size.width * scale
+            let scaledH = size.height * scale
+            let overflowX = max(0, scaledW - width)
+            let overflowY = max(0, scaledH - bannerHeight)
 
             Color.clear
                 .frame(width: width, height: bannerHeight)
@@ -1031,21 +1043,43 @@ private struct HeaderImageBanner: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: width, height: bannerHeight)
-                        .offset(y: (0.5 - bias) * overflow)
+                        .scaleEffect(max(1, zoom), anchor: .center)
+                        .offset(x: (0.5 - hBias) * overflowX,
+                                y: (0.5 - bias) * overflowY)
                 }
                 .clipped()
                 .contentShape(Rectangle())
                 .highPriorityGesture(
+                    // Drag pans in whichever axis has room (left/right for a wide
+                    // panorama, up/down for a tall portrait).
                     DragGesture()
                         .onChanged { value in
-                            guard overflow > 0 else { return }
-                            let start = dragAnchor ?? bias
-                            if dragAnchor == nil { dragAnchor = bias }
-                            bias = min(max(start - value.translation.height / overflow, 0), 1)
+                            if dragAnchor == nil { dragAnchor = CGPoint(x: hBias, y: bias) }
+                            let start = dragAnchor ?? CGPoint(x: hBias, y: bias)
+                            if overflowX > 0 {
+                                hBias = min(max(start.x - value.translation.width / overflowX, 0), 1)
+                            }
+                            if overflowY > 0 {
+                                bias = min(max(start.y - value.translation.height / overflowY, 0), 1)
+                            }
                         }
                         .onEnded { _ in
                             guard dragAnchor != nil else { return }
                             dragAnchor = nil
+                            onCommit()
+                        }
+                )
+                .simultaneousGesture(
+                    // Pinch to zoom — icing that lets any image be reframed, and
+                    // gives a panorama vertical room or a portrait horizontal room.
+                    MagnificationGesture()
+                        .onChanged { value in
+                            if zoomAnchor == nil { zoomAnchor = zoom }
+                            let base = zoomAnchor ?? zoom
+                            zoom = min(max(base * value, 1), maxZoom)
+                        }
+                        .onEnded { _ in
+                            zoomAnchor = nil
                             onCommit()
                         }
                 )

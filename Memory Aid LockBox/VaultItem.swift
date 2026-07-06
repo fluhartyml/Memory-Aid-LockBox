@@ -25,6 +25,12 @@ final class VaultItem {
     /// portrait photo be panned so the right part lands in the banner.
     /// Defaulted for CloudKit; existing notes read back as centered.
     var headerVerticalBias: Double = 0.5
+    /// Horizontal pan for the hero banner: 0 = show the left, 0.5 = centered,
+    /// 1 = show the right. Lets a wide panorama be panned side to side.
+    var headerHorizontalBias: Double = 0.5
+    /// Extra zoom applied on top of the fill scale (1 = fill, up to ~4x). Pinch
+    /// to zoom the hero so it can be reframed in any direction.
+    var headerZoom: Double = 1.0
 
     // Secure-contact fields. Used when the item is a contact card (the name is
     // the item's `title`). Empty for a normal note. All defaulted for CloudKit.
