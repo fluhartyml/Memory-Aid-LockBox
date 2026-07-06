@@ -44,6 +44,7 @@ struct CardEditView: View {
     @State private var barcode = ""
     @State private var notes = ""
     @State private var attachedImages: [Data] = []
+    @State private var fullScreenImage: Data?
 
     @State private var libraryItem: PhotosPickerItem?
     @State private var isReading = false
@@ -163,6 +164,15 @@ struct CardEditView: View {
                     libraryItem = nil
                 }
             }
+            #if os(iOS)
+            .fullScreenCover(item: $fullScreenImage) { data in
+                ImageViewerView(imageData: data)
+            }
+            #else
+            .sheet(item: $fullScreenImage) { data in
+                fullImageSheet(data)
+            }
+            #endif
         }
     }
 
@@ -172,12 +182,30 @@ struct CardEditView: View {
 
     // MARK: - Photos
 
+    #if os(macOS)
+    @ViewBuilder
+    private func fullImageSheet(_ data: Data) -> some View {
+        VStack {
+            if let ns = NSImage(data: data) {
+                Image(nsImage: ns).resizable().scaledToFit()
+            }
+            Button("Done") { fullScreenImage = nil }
+                .keyboardShortcut(.defaultAction)
+                .padding(.top, 8)
+        }
+        .padding()
+        .frame(minWidth: 640, minHeight: 420)
+    }
+    #endif
+
     private var imageArea: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(attachedImages.indices, id: \.self) { index in
                     VStack(spacing: 4) {
                         thumbnail(at: index)
+                            .contentShape(Rectangle())
+                            .onTapGesture { fullScreenImage = attachedImages[index] }
                         Text(index == 0 ? "Front" : (index == 1 ? "Back" : "Photo \(index + 1)"))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
