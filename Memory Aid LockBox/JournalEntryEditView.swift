@@ -135,7 +135,7 @@ struct JournalEntryEditView: View {
         #if canImport(UIKit)
         if let ui = UIImage(data: data) {
             Image(uiImage: ui).resizable().scaledToFill()
-                .frame(maxWidth: .infinity).frame(height: 160)
+                .frame(maxWidth: .infinity).frame(height: 260)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(alignment: .topTrailing) {
                     Button(role: .destructive) { headerImage = [] } label: {
