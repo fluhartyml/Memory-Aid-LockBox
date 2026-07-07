@@ -57,6 +57,47 @@ enum CardTextRecognizer {
                               suggestedNumber: bestNumber(in: lines))
     }
 
+    /// Receipt-tuned OCR that reconstructs whole ROWS. Vision reads a receipt
+    /// column-by-column (all item names, then all prices), so a name and its
+    /// price arrive as separate observations. We regroup observations by their
+    /// vertical position and join left-to-right, so each row reads
+    /// "NAME … PRICE" again — which the line-item parser needs. Language
+    /// correction is off (product codes / prices shouldn't be autocorrected).
+    static func receiptRows(from imageData: Data) async -> [String]? {
+        guard let cg = uprightCGImage(from: imageData) else {
+            return await recognize(from: imageData)?.lines   // fallback: flat lines
+        }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        let handler = VNImageRequestHandler(cgImage: cg, options: [:])
+        try? handler.perform([request])
+        guard let observations = request.results, !observations.isEmpty else { return nil }
+
+        let fragments: [(text: String, box: CGRect)] = observations.compactMap {
+            guard let s = $0.topCandidates(1).first?.string else { return nil }
+            return (s, $0.boundingBox)
+        }
+        guard !fragments.isEmpty else { return nil }
+
+        // Cluster fragments into rows by vertical position (Vision origin is
+        // bottom-left → larger y is higher on the page), then read each row
+        // left-to-right.
+        let sorted = fragments.sorted { $0.box.midY > $1.box.midY }
+        var rows: [[(text: String, box: CGRect)]] = []
+        for frag in sorted {
+            if let ref = rows.last?.first,
+               abs(ref.box.midY - frag.box.midY) < max(ref.box.height, frag.box.height) * 0.6 {
+                rows[rows.count - 1].append(frag)
+            } else {
+                rows.append([frag])
+            }
+        }
+        return rows.map { row in
+            row.sorted { $0.box.minX < $1.box.minX }.map(\.text).joined(separator: " ")
+        }
+    }
+
     /// Decode image bytes into an upright CGImage (orientation baked in) so
     /// Vision reads it the right way up regardless of how the photo was shot.
     #if canImport(UIKit)

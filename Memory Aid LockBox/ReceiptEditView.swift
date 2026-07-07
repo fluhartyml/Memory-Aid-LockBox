@@ -85,12 +85,11 @@ struct ReceiptEditView: View {
                 Section {
                     if !attachedImages.isEmpty { imageArea }
                     fillFromImageButton
-                    captureButtons
                 } header: {
                     Text("Receipt photo").font(.system(size: 16))
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\"Fill from image\" (Scan or Library) reads the receipt and fills the store, line items, and totals.")
+                        Text("\"Fill from scan\" reads the receipt and fills the address, line items, and totals. Add the store name yourself — it's usually a logo.")
                             .font(.system(size: 13))
                         if let fillStatus {
                             Text(fillStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
@@ -160,7 +159,7 @@ struct ReceiptEditView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .font(.system(size: 18, weight: .semibold))
-                        .disabled(store.isEmpty)
+                        .disabled(isBlank)
                 }
             }
             #if os(iOS)
@@ -291,7 +290,7 @@ struct ReceiptEditView: View {
             HStack(spacing: 8) {
                 if isReading { ProgressView() }
                 else { Image(systemName: "text.viewfinder").font(.system(size: 18)) }
-                Text(isReading ? "Reading…" : "Fill from image").font(.system(size: 16, weight: .semibold))
+                Text(isReading ? "Reading…" : "Fill from scan").font(.system(size: 16, weight: .semibold))
             }
         }
         .buttonStyle(.plain).foregroundStyle(Color.accentColor).disabled(isReading)
@@ -312,12 +311,12 @@ struct ReceiptEditView: View {
         Task {
             isReading = true
             defer { isReading = false }
-            guard let card = await CardTextRecognizer.recognize(from: first) else {
+            guard let rows = await CardTextRecognizer.receiptRows(from: first), !rows.isEmpty else {
                 fillStatus = "Couldn't read any text. A Scan usually reads cleaner than a photo."
                 return
             }
 
-            let parsed = ReceiptTextParser.parse(card.lines)
+            let parsed = ReceiptTextParser.parse(rows)
             // Address + phone are printed as text, so fill them. The store NAME
             // is usually a logo (Target's bullseye), not text — don't guess it
             // from a stray line; leave it for the user.
@@ -333,13 +332,22 @@ struct ReceiptEditView: View {
                 let n = parsed.items.count
                 fillStatus = "Read \(n) item\(n == 1 ? "" : "s")\(store.isEmpty ? " — add the store name (it's usually a logo, not text)." : ".")"
             } else {
-                if notes.isEmpty { notes = card.fullText }   // fallback: keep raw text
+                if notes.isEmpty { notes = rows.joined(separator: "\n") }   // fallback: keep raw text
                 fillStatus = "Read the text but found no line items — put the raw text in Notes."
             }
         }
     }
 
     // MARK: - Save
+
+    /// A receipt is only un-savable when it's completely empty — store name is
+    /// optional (it's often just a logo), so items/totals/photo are enough.
+    private var isBlank: Bool {
+        store.isEmpty
+        && lineItems.allSatisfy { $0.name.isEmpty && $0.price.isEmpty }
+        && attachedImages.isEmpty
+        && subtotal.isEmpty && tax.isEmpty && total.isEmpty
+    }
 
     private func save() {
         let item = VaultItem(title: store.isEmpty ? "Receipt" : store,

@@ -25,9 +25,8 @@ enum ReceiptTextParser {
 
     static func parse(_ lines: [String]) -> Result {
         var result = Result()
-        let joined = lines.joined(separator: " ")
-        result.phone = detect(.phoneNumber, in: joined)
-        result.address = detect(.address, in: joined)
+        result.phone = firstPhone(in: lines)   // per-row so it doesn't grab trailing address digits
+        result.address = detect(.address, in: lines.joined(separator: ", "))
 
         for raw in lines {
             let line = raw.trimmingCharacters(in: .whitespaces)
@@ -80,8 +79,18 @@ enum ReceiptTextParser {
     private static func cleanName(_ s: String) -> String {
         var t = s.trimmingCharacters(in: .whitespaces)
         t = t.replacingOccurrences(of: "^[0-9]{5,}\\s+", with: "", options: .regularExpression)
+        // drop a trailing tax/unit flag left after the price was removed (NF, T, N, F, H, X)
+        t = t.replacingOccurrences(of: "\\s+(NF|N|T|F|H|X)$", with: "",
+                                    options: [.regularExpression, .caseInsensitive])
         t = t.trimmingCharacters(in: CharacterSet(charactersIn: "$*#•- "))
         return t.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// First phone found in any single row (avoids a whole-text match gluing on
+    /// the address's leading digits, e.g. "979-299-0009 202").
+    private static func firstPhone(in lines: [String]) -> String? {
+        for line in lines { if let p = detect(.phoneNumber, in: line) { return p } }
+        return nil
     }
 
     /// First NSDataDetector match of the given type (phone, address).
