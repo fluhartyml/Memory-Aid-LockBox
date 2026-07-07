@@ -25,7 +25,7 @@ struct QuickTag: Codable, Identifiable, Hashable {
         QuickTag(label: "Called",  typeKey: "call",  iconName: "phone"),
         QuickTag(label: "Texted",  typeKey: "text",  iconName: "message"),
         QuickTag(label: "Emailed", typeKey: "email", iconName: "envelope"),
-        QuickTag(label: "Met",     typeKey: "met",   iconName: "person.2"),
+        QuickTag(label: "Meeting", typeKey: "met",   iconName: "person.2"),
     ]
 
     /// A stable, human-readable type key derived from a label (lowercased,
