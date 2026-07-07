@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import PhotosUI
 import CoreLocation
 #if canImport(UIKit)
@@ -17,6 +18,7 @@ import Contacts
 
 struct ItemDetailView: View {
     @Bindable var item: VaultItem
+    @Environment(\.modelContext) private var modelContext
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var headerPhoto: PhotosPickerItem?
     @State private var showLibraryPicker = false
@@ -521,10 +523,55 @@ struct ItemDetailView: View {
             .padding(.top, 4)
             .disabled(item.receiptItems.isEmpty)
 
+            Button {
+                Task { await addStoreToContacts() }
+            } label: {
+                Label("Add store to Contacts", systemImage: "person.crop.circle.badge.plus")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .buttonStyle(.bordered)
+            .disabled(item.title.isEmpty && item.receiptPhone.isEmpty && item.receiptAddress.isEmpty)
+
             if let receiptStatus {
                 Text(receiptStatus).font(.system(size: 14)).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Create a business contact in the Contacts folder from the receipt's
+    /// store name, address, and phone — plus the store logo (best-effort crop
+    /// from the receipt image) as the contact photo. Stores a vCard so it
+    /// exports to Apple Contacts cleanly.
+    private func addStoreToContacts() async {
+        let store = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = store.isEmpty ? "Store" : store
+        let folders = (try? modelContext.fetch(FetchDescriptor<Folder>())) ?? []
+        guard let contactsFolder = folders.first(where: { $0.template == .contacts }) else {
+            receiptStatus = "No Contacts folder to add the store to."
+            return
+        }
+
+        let new = VaultItem(title: name, folder: contactsFolder)
+        new.isBusinessContact = true
+        new.contactPhone = item.receiptPhone
+        new.contactAddress = item.receiptAddress
+
+        var logoData: Data?
+        if let src = item.imageData.first, let logo = await ReceiptLogoCropper.crop(from: src) {
+            new.imageData = [logo]
+            logoData = logo
+        }
+
+        #if os(iOS)
+        let contact = ContactCardService.makeContact(
+            name: name, phone: item.receiptPhone, email: "",
+            address: item.receiptAddress, isBusiness: true)
+        if let logoData { contact.imageData = logoData }
+        new.contactVCard = ContactCardService.vCardString(from: contact) ?? ""
+        #endif
+
+        modelContext.insert(new)
+        receiptStatus = "Added \(name) to Contacts\(logoData != nil ? " with its logo" : "")."
     }
 
     private func receiptTotalRow(_ label: String, _ value: String) -> some View {

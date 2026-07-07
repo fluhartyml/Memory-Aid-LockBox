@@ -83,6 +83,22 @@ struct ReceiptEditView: View {
                 }
 
                 Section {
+                    if !attachedImages.isEmpty { imageArea }
+                    fillFromImageButton
+                    captureButtons
+                } header: {
+                    Text("Receipt photo").font(.system(size: 16))
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\"Fill from image\" (Scan or Library) reads the receipt and fills the store, line items, and totals.")
+                            .font(.system(size: 13))
+                        if let fillStatus {
+                            Text(fillStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Section {
                     ForEach($lineItems) { $item in
                         HStack {
                             TextField("Item", text: $item.name).font(.system(size: 17))
@@ -127,22 +143,6 @@ struct ReceiptEditView: View {
                         .frame(minHeight: 60)
                 } header: {
                     Text("Notes").font(.system(size: 16))
-                }
-
-                Section {
-                    if !attachedImages.isEmpty { imageArea }
-                    fillFromImageButton
-                    captureButtons
-                } header: {
-                    Text("Receipt photo").font(.system(size: 16))
-                } footer: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\"Fill from image\" (Scan or Library) reads the receipt and fills the store, line items, and totals.")
-                            .font(.system(size: 13))
-                        if let fillStatus {
-                            Text(fillStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
-                        }
-                    }
                 }
             }
             #if os(macOS)
