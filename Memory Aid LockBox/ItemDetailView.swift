@@ -128,7 +128,7 @@ struct ItemDetailView: View {
                     appointmentSection
                 }
 
-                // Receipt fields + line items + Make grocery list.
+                // Receipt fields + line items + Make shopping list.
                 if isReceiptItem {
                     receiptSection
                 }
@@ -550,9 +550,9 @@ struct ItemDetailView: View {
             receiptTotalEditRow("Card last 4", $item.receiptCardLast4, numeric: true)
 
             Button {
-                Task { await makeGroceryList() }
+                Task { await makeShoppingList() }
             } label: {
-                Label("Make grocery list", systemImage: "cart.badge.plus")
+                Label("Make shopping list", systemImage: "cart.badge.plus")
                     .font(.system(size: 15, weight: .semibold))
             }
             .buttonStyle(.borderedProminent)
@@ -657,10 +657,10 @@ struct ItemDetailView: View {
         item.dateModified = Date()
     }
 
-    /// Roadmap 012/013/013a: dumb 1:1 mirror of the line items into a NEW
+    /// Roadmap 012/013/013a: 1:1 mirror of the line items into a NEW shopping-list
     /// Reminders list named after the receipt header, with an arrive-here alarm
     /// geocoded from the store address so it fires when you reach the store.
-    private func makeGroceryList() async {
+    private func makeShoppingList() async {
         let names = item.receiptItems.map(\.name).filter { !$0.isEmpty }
         guard !names.isEmpty else { return }
 
@@ -675,7 +675,7 @@ struct ItemDetailView: View {
         let ok = await EventKitService.addReminderList(
             named: header, items: names, location: coord, locationTitle: item.title)
         receiptStatus = ok
-            ? "Grocery list \"\(header)\" added to Reminders\(coord == nil ? "" : " (reminds you at the store)")."
+            ? "Shopping list \"\(header)\" added to Reminders\(coord == nil ? "" : " (reminds you at the store)")."
             : "Couldn't add — check Reminders access in Settings."
     }
 

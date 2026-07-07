@@ -15,7 +15,7 @@
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Memory Aid LockBox adds your appointments and significant dates to Apple Calendar.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Memory Aid LockBox adds appointment prep, follow-ups, and receipt grocery lists to Apple Reminders.</string>
+	<string>Memory Aid LockBox adds appointment prep, follow-ups, and receipt shopping lists to Apple Reminders.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Memory Aid LockBox adds your appointments and significant dates to Apple Calendar.</string>
 	<key>UIBackgroundModes</key>

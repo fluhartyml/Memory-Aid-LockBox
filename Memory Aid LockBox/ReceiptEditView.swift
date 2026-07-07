@@ -5,7 +5,7 @@
 //  The specialized create sheet for the Receipts template (roadmap 011). Fields:
 //  Store/merchant (title) · Address · Phone · Date/time · Line items (discrete
 //  name+price rows) · Subtotal/Tax/Total · Payment (type + card last-4) · Receipt
-//  photo · Notes. Line items are discrete rows so "Make grocery list" (012/013)
+//  photo · Notes. Line items are discrete rows so "Make shopping list" (012/013)
 //  can mirror them 1:1 into a new Reminders list. Values show plain text (003).
 //
 
@@ -118,7 +118,7 @@ struct ReceiptEditView: View {
                 } header: {
                     Text("Line items").font(.system(size: 16))
                 } footer: {
-                    Text("Each item mirrors 1:1 into the grocery list.")
+                    Text("Each item mirrors 1:1 into the shopping list.")
                         .font(.system(size: 13))
                 }
 
