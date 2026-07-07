@@ -55,6 +55,8 @@ struct ReceiptEditView: View {
     @State private var attachedImages: [Data] = []
 
     @State private var libraryItem: PhotosPickerItem?
+    @State private var fillLibraryItem: PhotosPickerItem?
+    @State private var showFillLibrary = false
     @State private var isReading = false
     @State private var pendingFillAfterScan = false
     @State private var activeSheet: ReceiptSheet?
@@ -133,7 +135,7 @@ struct ReceiptEditView: View {
                 } header: {
                     Text("Receipt photo").font(.system(size: 16))
                 } footer: {
-                    Text("\"Fill from image\" scans the receipt and fills the store and notes.")
+                    Text("\"Fill from image\" (Scan or Library) reads the receipt and fills the store, line items, and totals.")
                         .font(.system(size: 13))
                 }
             }
@@ -188,6 +190,17 @@ struct ReceiptEditView: View {
                         attachedImages.append(data)
                     }
                     libraryItem = nil
+                }
+            }
+            .photosPicker(isPresented: $showFillLibrary, selection: $fillLibraryItem, matching: .images)
+            .onChange(of: fillLibraryItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        attachedImages.append(data)
+                        fillFromImage(from: data)
+                    }
+                    fillLibraryItem = nil
                 }
             }
         }
@@ -261,13 +274,13 @@ struct ReceiptEditView: View {
     }
 
     private var fillFromImageButton: some View {
-        Button {
-            pendingFillAfterScan = true
-            #if os(iOS)
-            activeSheet = .scanner
-            #else
-            showScannerMac = true
-            #endif
+        Menu {
+            Button { pendingFillAfterScan = true; openScanner() } label: {
+                Label("Scan receipt", systemImage: "doc.viewfinder")
+            }
+            Button { showFillLibrary = true } label: {
+                Label("Choose from Library", systemImage: "photo.on.rectangle")
+            }
         } label: {
             HStack(spacing: 8) {
                 if isReading { ProgressView() }
@@ -276,6 +289,14 @@ struct ReceiptEditView: View {
             }
         }
         .buttonStyle(.plain).foregroundStyle(Color.accentColor).disabled(isReading)
+    }
+
+    private func openScanner() {
+        #if os(iOS)
+        activeSheet = .scanner
+        #else
+        showScannerMac = true
+        #endif
     }
 
     // MARK: - Fill from image
@@ -287,7 +308,17 @@ struct ReceiptEditView: View {
             defer { isReading = false }
             guard let card = await CardTextRecognizer.recognize(from: first) else { return }
             if store.isEmpty, let suggested = card.suggestedTitle { store = suggested }
-            if notes.isEmpty { notes = card.fullText }
+
+            let parsed = ReceiptTextParser.parse(card.lines)
+            if !parsed.items.isEmpty {
+                let existing = lineItems.filter { !$0.name.isEmpty || !$0.price.isEmpty }
+                lineItems = existing + parsed.items
+                if subtotal.isEmpty, let s = parsed.subtotal { subtotal = s }
+                if tax.isEmpty, let t = parsed.tax { tax = t }
+                if total.isEmpty, let t = parsed.total { total = t }
+            } else if notes.isEmpty {
+                notes = card.fullText   // fallback: nothing parsed, keep raw text
+            }
         }
     }
 
