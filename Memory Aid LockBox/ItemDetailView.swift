@@ -507,28 +507,43 @@ struct ItemDetailView: View {
             hideable("receiptPhone") { contactField("Phone", text: $item.receiptPhone, systemImage: "phone") }
             DatePicker("Date & time", selection: $item.receiptDate).font(.system(size: 16))
 
-            if !item.receiptItems.isEmpty {
-                Text("Items").font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
-                ForEach(item.receiptItems) { line in
-                    HStack {
-                        Text(line.name)
-                        Spacer()
-                        Text(line.price).foregroundStyle(.secondary)
-                    }
-                    .font(.system(size: 16))
+            // Line items — editable, because OCR is unreliable and every scanned
+            // line needs to be correctable after the fact. Long-press a row to
+            // delete it (this is a ScrollView, so no swipe-to-delete).
+            Text("Items").font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
+            ForEach(item.receiptItems.indices, id: \.self) { idx in
+                HStack {
+                    TextField("Item", text: lineItemBinding(idx, \.name))
+                        .font(.system(size: 16))
+                        #if os(iOS)
+                        .autocorrectionDisabled()
+                        #endif
+                    Spacer()
+                    TextField("Price", text: lineItemBinding(idx, \.price))
+                        .font(.system(size: 16))
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 90)
+                        #if os(iOS)
+                        .keyboardType(.decimalPad)
+                        #endif
                 }
+                .contextMenu {
+                    Button(role: .destructive) { deleteReceiptItem(idx) } label: {
+                        Label("Delete item", systemImage: "trash")
+                    }
+                }
+            }
+            Button { addReceiptItem() } label: {
+                Label("Add item", systemImage: "plus.circle").font(.system(size: 15))
             }
 
             Group {
-                hideable("receiptSubtotal") { receiptTotalRow("Subtotal", item.receiptSubtotal) }
-                hideable("receiptTax") { receiptTotalRow("Tax", item.receiptTax) }
-                hideable("receiptTotal") { receiptTotalRow("Total", item.receiptTotal) }
+                hideable("receiptSubtotal") { receiptTotalEditRow("Subtotal", $item.receiptSubtotal) }
+                hideable("receiptTax") { receiptTotalEditRow("Tax", $item.receiptTax) }
+                hideable("receiptTotal") { receiptTotalEditRow("Total", $item.receiptTotal, bold: true) }
             }
-            if !item.receiptPaymentType.isEmpty || !item.receiptCardLast4.isEmpty {
-                let last4 = item.receiptCardLast4.isEmpty ? "" : " ••\(item.receiptCardLast4)"
-                Text("Paid: \(item.receiptPaymentType)\(last4)")
-                    .font(.system(size: 15)).foregroundStyle(.secondary)
-            }
+            receiptTotalEditRow("Payment", $item.receiptPaymentType)
+            receiptTotalEditRow("Card last 4", $item.receiptCardLast4, numeric: true)
 
             Button {
                 Task { await makeGroceryList() }
@@ -591,17 +606,51 @@ struct ItemDetailView: View {
         receiptStatus = "Added \(name) to Contacts\(logoData != nil ? " with its logo" : "")."
     }
 
-    private func receiptTotalRow(_ label: String, _ value: String) -> some View {
-        Group {
-            if !value.isEmpty {
-                HStack {
-                    Text(label).foregroundStyle(.secondary)
-                    Spacer()
-                    Text(value)
-                }
-                .font(.system(size: 16, weight: label == "Total" ? .semibold : .regular))
-            }
+    /// Editable totals / payment row — label stays visible so a bare number
+    /// still reads, and an empty field can be filled in when OCR missed it.
+    private func receiptTotalEditRow(_ label: String, _ text: Binding<String>,
+                                     bold: Bool = false, numeric: Bool = false) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            TextField("", text: text)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 140)
+                #if os(iOS)
+                .keyboardType(numeric ? .numberPad : .decimalPad)
+                #endif
         }
+        .font(.system(size: 16, weight: bold ? .semibold : .regular))
+    }
+
+    /// A binding into one line item's field that writes the whole array back
+    /// (receiptItems is a computed JSON-backed property).
+    private func lineItemBinding(_ idx: Int, _ keyPath: WritableKeyPath<ReceiptLineItem, String>) -> Binding<String> {
+        Binding(
+            get: { item.receiptItems.indices.contains(idx) ? item.receiptItems[idx][keyPath: keyPath] : "" },
+            set: {
+                var arr = item.receiptItems
+                guard arr.indices.contains(idx) else { return }
+                arr[idx][keyPath: keyPath] = $0
+                item.receiptItems = arr
+                item.dateModified = Date()
+            }
+        )
+    }
+
+    private func addReceiptItem() {
+        var arr = item.receiptItems
+        arr.append(ReceiptLineItem())
+        item.receiptItems = arr
+        item.dateModified = Date()
+    }
+
+    private func deleteReceiptItem(_ idx: Int) {
+        var arr = item.receiptItems
+        guard arr.indices.contains(idx) else { return }
+        arr.remove(at: idx)
+        item.receiptItems = arr
+        item.dateModified = Date()
     }
 
     /// Roadmap 012/013/013a: dumb 1:1 mirror of the line items into a NEW
