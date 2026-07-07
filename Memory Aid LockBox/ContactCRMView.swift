@@ -13,9 +13,13 @@ import SwiftUI
 struct ContactCRMView: View {
     @Bindable var item: VaultItem
 
+    @AppStorage(QuickTagStore.key) private var tagsJSON = ""
     @State private var interactionSheet: InteractionSheetMode?
     @State private var showAddDate = false
     @State private var dateStatus: String?
+
+    /// The app-wide quick-interaction tags (editable in Settings).
+    private var quickTags: [QuickTag] { QuickTagStore.load(tagsJSON) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -74,10 +78,7 @@ struct ContactCRMView: View {
             // back-dated entry.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    quickLogButton("call", "Called", "phone")
-                    quickLogButton("text", "Texted", "message")
-                    quickLogButton("email", "Emailed", "envelope")
-                    quickLogButton("met", "Met", "person.2")
+                    ForEach(quickTags) { tag in quickLogButton(tag) }
                 }
             }
             if item.interactions.isEmpty {
@@ -90,7 +91,7 @@ struct ContactCRMView: View {
                         Image(systemName: icon(for: entry.type)).foregroundStyle(.blue)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.type.capitalized).font(.system(size: 15, weight: .semibold))
+                            Text(label(for: entry.type)).font(.system(size: 15, weight: .semibold))
                             if !entry.note.isEmpty {
                                 Text(entry.note).font(.system(size: 15))
                             }
@@ -120,25 +121,27 @@ struct ContactCRMView: View {
         }
     }
 
-    /// A single one-tap quick-log button (logs `type` at the current moment).
-    private func quickLogButton(_ type: String, _ label: String, _ image: String) -> some View {
+    /// A single one-tap quick-log button (logs the tag's type at the current moment).
+    private func quickLogButton(_ tag: QuickTag) -> some View {
         Button {
-            item.addInteraction(Interaction(type: type))
+            item.addInteraction(Interaction(type: tag.typeKey))
         } label: {
-            Label(label, systemImage: image).font(.system(size: 14, weight: .medium))
+            Label(tag.label, systemImage: tag.iconName).font(.system(size: 14, weight: .medium))
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
     }
 
+    /// Icon for a logged interaction — the matching quick tag's icon, else a
+    /// generic dot (e.g. a custom tag that was later removed, or "other").
     private func icon(for type: String) -> String {
-        switch type {
-        case "call": return "phone"
-        case "text": return "message"
-        case "email": return "envelope"
-        case "met": return "person.2"
-        default: return "circle"
-        }
+        QuickTagStore.tag(forType: type, in: quickTags)?.iconName ?? "circle"
+    }
+
+    /// Display name for a logged interaction — the matching quick tag's label,
+    /// else the raw type title-cased (graceful if the tag was removed).
+    private func label(for type: String) -> String {
+        QuickTagStore.tag(forType: type, in: quickTags)?.label ?? type.capitalized
     }
 
     // MARK: - 010b Significant dates
@@ -220,6 +223,7 @@ private struct InteractionSheet: View {
     let title: String
     let action: String
     let onSave: (Interaction) -> Void
+    @AppStorage(QuickTagStore.key) private var tagsJSON = ""
     @Environment(\.dismiss) private var dismiss
     @State private var entry: Interaction
 
@@ -233,11 +237,24 @@ private struct InteractionSheet: View {
         _entry = State(initialValue: initial)
     }
 
+    /// Type choices = the user's quick tags, plus "Other", plus the entry's
+    /// current type if its tag was removed (so it stays selectable when editing).
+    private var typeOptions: [(key: String, label: String)] {
+        var opts = QuickTagStore.load(tagsJSON).map { (key: $0.typeKey, label: $0.label) }
+        if !opts.contains(where: { $0.key == "other" }) {
+            opts.append((key: "other", label: "Other"))
+        }
+        if !entry.type.isEmpty && !opts.contains(where: { $0.key == entry.type }) {
+            opts.append((key: entry.type, label: entry.type.capitalized))
+        }
+        return opts
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Picker("Type", selection: $entry.type) {
-                    ForEach(Interaction.types, id: \.self) { Text($0.capitalized).tag($0) }
+                    ForEach(typeOptions, id: \.key) { opt in Text(opt.label).tag(opt.key) }
                 }
                 DatePicker("When", selection: $entry.date)
                 Section("Note") {

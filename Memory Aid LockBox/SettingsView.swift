@@ -36,6 +36,18 @@ struct SettingsView: View {
                 } footer: {
                     Text("Protected folders re-lock this long after you unlock them, and you'll be returned to the folder list. \"Never\" keeps them unlocked until the app is closed or sent to the background.")
                 }
+
+                Section {
+                    NavigationLink {
+                        QuickTagsEditorView()
+                    } label: {
+                        Label("Quick interaction tags", systemImage: "bolt.badge.clock")
+                    }
+                } header: {
+                    Text("Contacts")
+                } footer: {
+                    Text("Customize the one-tap buttons (Called, Texted, Emailed, Met…) in a contact's Interactions log — add your own, change icons, or reorder.")
+                }
             }
             .navigationTitle("Settings")
             #if os(iOS)
