@@ -58,6 +58,7 @@ struct ReceiptEditView: View {
     @State private var fillLibraryItem: PhotosPickerItem?
     @State private var showFillLibrary = false
     @State private var isReading = false
+    @State private var fillStatus: String?
     @State private var pendingFillAfterScan = false
     @State private var activeSheet: ReceiptSheet?
     #if os(macOS)
@@ -135,8 +136,13 @@ struct ReceiptEditView: View {
                 } header: {
                     Text("Receipt photo").font(.system(size: 16))
                 } footer: {
-                    Text("\"Fill from image\" (Scan or Library) reads the receipt and fills the store, line items, and totals.")
-                        .font(.system(size: 13))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\"Fill from image\" (Scan or Library) reads the receipt and fills the store, line items, and totals.")
+                            .font(.system(size: 13))
+                        if let fillStatus {
+                            Text(fillStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
             #if os(macOS)
@@ -306,7 +312,10 @@ struct ReceiptEditView: View {
         Task {
             isReading = true
             defer { isReading = false }
-            guard let card = await CardTextRecognizer.recognize(from: first) else { return }
+            guard let card = await CardTextRecognizer.recognize(from: first) else {
+                fillStatus = "Couldn't read any text. A Scan usually reads cleaner than a photo."
+                return
+            }
             if store.isEmpty, let suggested = card.suggestedTitle { store = suggested }
 
             let parsed = ReceiptTextParser.parse(card.lines)
@@ -316,8 +325,10 @@ struct ReceiptEditView: View {
                 if subtotal.isEmpty, let s = parsed.subtotal { subtotal = s }
                 if tax.isEmpty, let t = parsed.tax { tax = t }
                 if total.isEmpty, let t = parsed.total { total = t }
-            } else if notes.isEmpty {
-                notes = card.fullText   // fallback: nothing parsed, keep raw text
+                fillStatus = "Read \(parsed.items.count) item\(parsed.items.count == 1 ? "" : "s")."
+            } else {
+                if notes.isEmpty { notes = card.fullText }   // fallback: keep raw text
+                fillStatus = "Read the text but found no line items — put the raw text in Notes."
             }
         }
     }

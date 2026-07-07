@@ -10,6 +10,10 @@
 
 import Foundation
 import Vision
+import ImageIO
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct RecognizedCard {
     /// Every recognized line, top to bottom.
@@ -29,7 +33,17 @@ enum CardTextRecognizer {
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
 
-        guard let observations = try? await request.perform(on: imageData) else { return nil }
+        // Feed Vision an upright CGImage when possible. A Photos image carries
+        // EXIF orientation that perform(on: Data) may not apply, so a portrait
+        // shot can be read sideways → no text found. Scanner JPEGs are already
+        // upright, so this is a no-op for them.
+        let observations: [RecognizedTextObservation]?
+        if let cg = uprightCGImage(from: imageData) {
+            observations = try? await request.perform(on: cg)
+        } else {
+            observations = try? await request.perform(on: imageData)
+        }
+        guard let observations, !observations.isEmpty else { return nil }
 
         let lines = observations
             .compactMap { $0.topCandidates(1).first?.string }
@@ -42,6 +56,22 @@ enum CardTextRecognizer {
                               suggestedTitle: bestTitle(in: lines),
                               suggestedNumber: bestNumber(in: lines))
     }
+
+    /// Decode image bytes into an upright CGImage (orientation baked in) so
+    /// Vision reads it the right way up regardless of how the photo was shot.
+    #if canImport(UIKit)
+    private static func uprightCGImage(from data: Data) -> CGImage? {
+        guard let ui = UIImage(data: data) else { return nil }
+        if ui.imageOrientation == .up { return ui.cgImage }
+        let renderer = UIGraphicsImageRenderer(size: ui.size)
+        return renderer.image { _ in ui.draw(in: CGRect(origin: .zero, size: ui.size)) }.cgImage
+    }
+    #else
+    private static func uprightCGImage(from data: Data) -> CGImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(src, 0, nil)
+    }
+    #endif
 
     /// First mostly-letters line (usually the card/bank/member name).
     private static func bestTitle(in lines: [String]) -> String? {
