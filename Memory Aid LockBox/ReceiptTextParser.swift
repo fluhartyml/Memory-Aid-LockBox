@@ -32,6 +32,8 @@ enum ReceiptTextParser {
         var total = ""
         var phone = ""
         var address = ""
+        var paymentType = ""
+        var cardLast4 = ""
     }
 
     // MARK: - Geometric parse (uses fragment positions)
@@ -58,35 +60,50 @@ enum ReceiptTextParser {
         }
         names.sort { $0.midY > $1.midY }   // top to bottom
 
-        // Bare prices in the right-hand column, top-to-bottom.
-        var prices: [String] = frags
-            .filter { $0.box.minX > 0.5 && priceOnly($0.text) != nil }
-            .sorted { $0.box.midY > $1.box.midY }
-            .compactMap { priceOnly($0.text) }
-
-        var qi = 0
-        for nm in names {
-            let price: String
-            if let ip = nm.inlinePrice { price = ip }
-            else if qi < prices.count { price = prices[qi]; qi += 1 }
-            else { continue }
-            out.items.append(ReceiptLineItem(name: nm.name, price: price))
-        }
-
-        // Totals: nearest right-column price to each label's row.
-        let allPrices: [(value: String, midY: CGFloat)] = frags
+        // Bare prices in the right-hand column, with their row position.
+        let rightPrices: [(value: String, midY: CGFloat)] = frags
             .filter { $0.box.minX > 0.5 }
             .compactMap { f in priceOnly(f.text).map { (value: $0, midY: f.box.midY) } }
+
+        // Pair each item with the price on ITS OWN ROW (nearest midY within a
+        // tolerance ~ half a line). Robust: a price the OCR missed leaves that
+        // one item blank instead of shifting every price down (which put the
+        // subtotal onto the last item).
+        let tol = rowTolerance(names.map(\.midY))
+        func nearestValue(_ y: CGFloat, within t: CGFloat) -> String {
+            rightPrices.filter { abs($0.midY - y) <= t }
+                .min { abs($0.midY - y) < abs($1.midY - y) }?.value ?? ""
+        }
+        for nm in names {
+            if let ip = nm.inlinePrice {
+                out.items.append(ReceiptLineItem(name: nm.name, price: ip))
+            } else {
+                out.items.append(ReceiptLineItem(name: nm.name, price: nearestValue(nm.midY, within: tol)))
+            }
+        }
+
+        // Totals: the price on the same row as each label (a touch more slack).
         if let y = frags.first(where: { $0.text.uppercased().contains("SUBTOTAL") })?.box.midY {
-            out.subtotal = nearestPrice(y, allPrices)
+            out.subtotal = nearestValue(y, within: tol * 1.6)
         }
         if let y = frags.first(where: { $0.text.uppercased().contains("TAX") })?.box.midY {
-            out.tax = nearestPrice(y, allPrices)
+            out.tax = nearestValue(y, within: tol * 1.6)
         }
         if let y = frags.first(where: {
             let u = $0.text.uppercased(); return u.contains("TOTAL") && !u.contains("SUBTOTAL")
         })?.box.midY {
-            out.total = nearestPrice(y, allPrices)
+            out.total = nearestValue(y, within: tol * 1.6)
+        }
+
+        // Payment: card network + last 4 (e.g. "*2395 VISA CHARGE", "US DEBIT").
+        let joined = frags.map(\.text).joined(separator: " ").uppercased()
+        for kw in ["VISA", "MASTERCARD", "AMERICAN EXPRESS", "AMEX", "DISCOVER", "DEBIT", "CREDIT"]
+        where joined.contains(kw) {
+            out.paymentType = kw == "AMEX" ? "Amex" : kw.capitalized
+            break
+        }
+        if let r = joined.range(of: "\\*\\s?([0-9]{4})", options: .regularExpression) {
+            out.cardLast4 = String(joined[r]).filter(\.isNumber)
         }
 
         // Address + phone from the top of the receipt.
@@ -192,9 +209,15 @@ enum ReceiptTextParser {
         return (String(tail[pr]), String(s[..<r.lowerBound]))
     }
 
-    /// The right-column price whose row is vertically closest to `y`.
-    private static func nearestPrice(_ y: CGFloat, _ prices: [(value: String, midY: CGFloat)]) -> String {
-        prices.min(by: { abs($0.midY - y) < abs($1.midY - y) })?.value ?? ""
+    /// Row-match tolerance ≈ 45% of the median item-row spacing (adapts to image
+    /// scale), clamped so it never merges adjacent rows or misses a real one.
+    private static func rowTolerance(_ midYs: [CGFloat]) -> CGFloat {
+        let sorted = midYs.sorted(by: >)
+        guard sorted.count > 1 else { return 0.012 }
+        var gaps: [CGFloat] = []
+        for i in 1..<sorted.count { gaps.append(sorted[i - 1] - sorted[i]) }
+        gaps.sort()
+        return max(0.006, min(gaps[gaps.count / 2] * 0.45, 0.02))
     }
 
     private static let metaKeywords = [

@@ -122,16 +122,16 @@ struct ReceiptEditView: View {
                 }
 
                 Section {
-                    field("Subtotal", $subtotal)
-                    field("Tax", $tax)
-                    field("Total", $total)
+                    labeledField("Subtotal", $subtotal)
+                    labeledField("Tax", $tax)
+                    labeledField("Total", $total)
                 } header: {
                     Text("Totals").font(.system(size: 16))
                 }
 
                 Section {
-                    field("Payment type", $paymentType)
-                    field("Card last 4", $cardLast4)
+                    labeledField("Payment type", $paymentType)
+                    labeledField("Card last 4", $cardLast4)
                 } header: {
                     Text("Payment").font(.system(size: 16))
                 }
@@ -213,6 +213,18 @@ struct ReceiptEditView: View {
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {
         TextField(label, text: text).font(.system(size: 18))
+    }
+
+    /// A row whose label stays visible even once the value is filled (totals /
+    /// payment read as bare numbers otherwise).
+    private func labeledField(_ label: String, _ text: Binding<String>) -> some View {
+        HStack {
+            Text(label).font(.system(size: 17)).foregroundStyle(.secondary)
+            Spacer()
+            TextField("", text: text)
+                .font(.system(size: 17))
+                .multilineTextAlignment(.trailing)
+        }
     }
 
     // MARK: - Photos
@@ -384,6 +396,8 @@ struct ReceiptEditView: View {
         if subtotal.isEmpty, !s.subtotal.isEmpty { subtotal = s.subtotal }
         if tax.isEmpty, !s.tax.isEmpty { tax = s.tax }
         if total.isEmpty, !s.total.isEmpty { total = s.total }
+        if paymentType.isEmpty, !s.paymentType.isEmpty { paymentType = s.paymentType }
+        if cardLast4.isEmpty, !s.cardLast4.isEmpty { cardLast4 = s.cardLast4 }
     }
 
     private func save() {
