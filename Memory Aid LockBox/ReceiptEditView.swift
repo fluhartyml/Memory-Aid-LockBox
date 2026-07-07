@@ -315,24 +315,40 @@ struct ReceiptEditView: View {
                 fillStatus = "Couldn't read any text. A Scan usually reads cleaner than a photo."
                 return
             }
+            let ocrText = rows.joined(separator: "\n")
 
-            let parsed = ReceiptTextParser.parse(rows)
-            // Address + phone are printed as text, so fill them. The store NAME
-            // is usually a logo (Target's bullseye), not text — don't guess it
-            // from a stray line; leave it for the user.
-            if address.isEmpty, let a = parsed.address { address = a }
-            if phone.isEmpty, let p = parsed.phone { phone = p }
+            // Address + phone are printed as text — heuristic backstop either way.
+            let heur = ReceiptTextParser.parse(rows)
+            if address.isEmpty, let a = heur.address { address = a }
+            if phone.isEmpty, let p = heur.phone { phone = p }
 
-            if !parsed.items.isEmpty {
+            // Prefer the on-device model — it re-associates prices orphaned by
+            // Vision's column-by-column read. Falls back to the positional
+            // heuristic when Apple Intelligence isn't available.
+            if let ai = await ReceiptLLMParser.parse(ocrText: ocrText), !ai.items.isEmpty {
                 let existing = lineItems.filter { !$0.name.isEmpty || !$0.price.isEmpty }
-                lineItems = existing + parsed.items
-                if subtotal.isEmpty, let s = parsed.subtotal { subtotal = s }
-                if tax.isEmpty, let t = parsed.tax { tax = t }
-                if total.isEmpty, let t = parsed.total { total = t }
-                let n = parsed.items.count
-                fillStatus = "Read \(n) item\(n == 1 ? "" : "s")\(store.isEmpty ? " — add the store name (it's usually a logo, not text)." : ".")"
+                lineItems = existing + ai.items.map { ReceiptLineItem(name: $0.name, price: $0.price) }
+                if store.isEmpty, !ai.store.isEmpty { store = ai.store }
+                if address.isEmpty, !ai.address.isEmpty { address = ai.address }
+                if phone.isEmpty, !ai.phone.isEmpty { phone = ai.phone }
+                if subtotal.isEmpty, !ai.subtotal.isEmpty { subtotal = ai.subtotal }
+                if tax.isEmpty, !ai.tax.isEmpty { tax = ai.tax }
+                if total.isEmpty, !ai.total.isEmpty { total = ai.total }
+                let n = ai.items.count
+                fillStatus = "Read \(n) item\(n == 1 ? "" : "s") with on-device AI\(store.isEmpty ? " — add the store name." : ".")"
+                return
+            }
+
+            if !heur.items.isEmpty {
+                let existing = lineItems.filter { !$0.name.isEmpty || !$0.price.isEmpty }
+                lineItems = existing + heur.items
+                if subtotal.isEmpty, let s = heur.subtotal { subtotal = s }
+                if tax.isEmpty, let t = heur.tax { tax = t }
+                if total.isEmpty, let t = heur.total { total = t }
+                let n = heur.items.count
+                fillStatus = "Read \(n) item\(n == 1 ? "" : "s")\(store.isEmpty ? " — add the store name (it's usually a logo)." : ".")"
             } else {
-                if notes.isEmpty { notes = rows.joined(separator: "\n") }   // fallback: keep raw text
+                if notes.isEmpty { notes = ocrText }   // fallback: keep raw text
                 fillStatus = "Read the text but found no line items — put the raw text in Notes."
             }
         }
