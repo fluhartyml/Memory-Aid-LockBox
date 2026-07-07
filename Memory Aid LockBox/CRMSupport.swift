@@ -51,6 +51,16 @@ extension VaultItem {
         interactions = list
     }
 
+    /// Replace an existing interaction (matched by id) with an edited copy —
+    /// used when a logged entry is long-pressed to add a note or adjust its
+    /// date/time. No-op if the id is no longer present.
+    func updateInteraction(_ interaction: Interaction) {
+        var list = interactions
+        guard let idx = list.firstIndex(where: { $0.id == interaction.id }) else { return }
+        list[idx] = interaction
+        interactions = list
+    }
+
     // MARK: 010b — significant dates
 
     var significantDates: [SignificantDate] {

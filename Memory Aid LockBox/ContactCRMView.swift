@@ -13,7 +13,7 @@ import SwiftUI
 struct ContactCRMView: View {
     @Bindable var item: VaultItem
 
-    @State private var showAddInteraction = false
+    @State private var interactionSheet: InteractionSheetMode?
     @State private var showAddDate = false
     @State private var dateStatus: String?
 
@@ -64,7 +64,7 @@ struct ContactCRMView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button { showAddInteraction = true } label: {
+                Button { interactionSheet = .add } label: {
                     Label("Log", systemImage: "plus.circle.fill").font(.system(size: 15, weight: .semibold))
                 }
                 .buttonStyle(.plain)
@@ -83,6 +83,8 @@ struct ContactCRMView: View {
             if item.interactions.isEmpty {
                 Text("No interactions logged yet.").font(.system(size: 14)).foregroundStyle(.secondary)
             } else {
+                Text("Tap a quick button to log now · long-press an entry to add a note or fix the date")
+                    .font(.system(size: 12)).foregroundStyle(.tertiary)
                 ForEach(item.interactions) { entry in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: icon(for: entry.type)).foregroundStyle(.blue)
@@ -101,11 +103,20 @@ struct ContactCRMView: View {
                         } label: { Image(systemName: "trash").font(.system(size: 13)) }
                         .buttonStyle(.plain)
                     }
+                    // Long-press the logged entry to reopen it for a note or a
+                    // date/time adjustment (roadmap 010a refinement).
+                    .contentShape(Rectangle())
+                    .onLongPressGesture { interactionSheet = .edit(entry) }
                 }
             }
         }
-        .sheet(isPresented: $showAddInteraction) {
-            AddInteractionSheet { item.addInteraction($0) }
+        .sheet(item: $interactionSheet) { mode in
+            switch mode {
+            case .add:
+                InteractionSheet(title: "Log Interaction", action: "Add") { item.addInteraction($0) }
+            case .edit(let entry):
+                InteractionSheet(initial: entry, title: "Edit Interaction", action: "Save") { item.updateInteraction($0) }
+            }
         }
     }
 
@@ -185,12 +196,42 @@ struct ContactCRMView: View {
     }
 }
 
-// MARK: - Add sheets
+// MARK: - Interaction sheet (log new / edit existing)
 
-private struct AddInteractionSheet: View {
-    let onAdd: (Interaction) -> Void
+/// Which mode the single interaction sheet is in — one channel for both "Log"
+/// and "Edit" so we never stack two sheets on the same view (the four-stacked-
+/// sheets bug lesson). Identifiable so it drives `.sheet(item:)`.
+enum InteractionSheetMode: Identifiable {
+    case add
+    case edit(Interaction)
+
+    var id: String {
+        switch self {
+        case .add: return "add"
+        case .edit(let entry): return entry.id.uuidString
+        }
+    }
+}
+
+/// Log a new interaction or edit an existing one. Seeded from `initial`;
+/// on confirm it hands the (possibly edited) entry back via `onSave`, which
+/// decides add-vs-update. The "When" picker covers date AND time.
+private struct InteractionSheet: View {
+    let title: String
+    let action: String
+    let onSave: (Interaction) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var entry = Interaction()
+    @State private var entry: Interaction
+
+    init(initial: Interaction = Interaction(),
+         title: String = "Log Interaction",
+         action: String = "Add",
+         onSave: @escaping (Interaction) -> Void) {
+        self.title = title
+        self.action = action
+        self.onSave = onSave
+        _entry = State(initialValue: initial)
+    }
 
     var body: some View {
         NavigationStack {
@@ -206,14 +247,14 @@ private struct AddInteractionSheet: View {
             #if os(macOS)
             .formStyle(.grouped).frame(minWidth: 420, minHeight: 420)
             #endif
-            .navigationTitle("Log Interaction")
+            .navigationTitle(title)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { onAdd(entry); dismiss() }.fontWeight(.semibold)
+                    Button(action) { onSave(entry); dismiss() }.fontWeight(.semibold)
                 }
             }
         }
