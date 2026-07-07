@@ -33,6 +33,10 @@ struct ItemDetailView: View {
     @State private var showAddContact = false
     @State private var contactShareFile: ShareableFile?
     @State private var isReadingContact = false
+    @State private var showHoursScanner = false
+    @State private var showHoursLibrary = false
+    @State private var hoursLibraryItem: PhotosPickerItem?
+    @State private var isReadingHours = false
 
     /// This item is a secure contact card — show the contact fields + the
     /// share / add-to-Contacts actions.
@@ -219,6 +223,19 @@ struct ItemDetailView: View {
         // reliably on macOS than the button-style PhotosPicker.
         .photosPicker(isPresented: $showLibraryPicker, selection: $selectedPhoto, matching: .images)
         .photosPicker(isPresented: $showHeaderPicker, selection: $headerPhoto, matching: .images)
+        .photosPicker(isPresented: $showHoursLibrary, selection: $hoursLibraryItem, matching: .images)
+        .onChange(of: hoursLibraryItem) { _, it in
+            guard let it else { return }
+            Task {
+                if let data = try? await it.loadTransferable(type: Data.self) { fillHours(from: data) }
+                hoursLibraryItem = nil
+            }
+        }
+        #if os(iOS)
+        .sheet(isPresented: $showHoursScanner) {
+            DocumentScannerView { pages in if let p = pages.first { fillHours(from: p) } }
+        }
+        #endif
         .onChange(of: selectedPhoto) { _, newPhoto in
             guard let newPhoto else { return }
             Task {
@@ -680,7 +697,12 @@ struct ItemDetailView: View {
 
             if item.isBusinessContact {
                 hideable("contactWebsite") { contactField("Website", text: $item.contactWebsite, systemImage: "globe") }
-                hideable("contactHours") { contactField("Hours", text: $item.contactHours, systemImage: "clock") }
+                hideable("contactHours") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        contactField("Hours", text: $item.contactHours, systemImage: "clock")
+                        hoursFillControl
+                    }
+                }
             } else {
                 hideable("contactRelationship") { contactField("Source", text: $item.contactRelationship, systemImage: "location") }
             }
@@ -870,6 +892,56 @@ struct ItemDetailView: View {
         item.dateModified = Date()
     }
     #endif
+
+    // MARK: - Store hours from a photo (door/entry sign)
+
+    private var hoursFillControl: some View {
+        Menu {
+            #if os(iOS)
+            Button { showHoursScanner = true } label: { Label("Scan hours sign", systemImage: "doc.viewfinder") }
+            #endif
+            Button { showHoursLibrary = true } label: { Label("Choose from Library", systemImage: "photo.on.rectangle") }
+        } label: {
+            HStack(spacing: 6) {
+                if isReadingHours { ProgressView() } else { Image(systemName: "text.viewfinder").font(.system(size: 15)) }
+                Text(isReadingHours ? "Reading…" : "Fill Hours from photo").font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundStyle(Color.accentColor)
+        }
+        .disabled(isReadingHours)
+    }
+
+    /// OCR a door/entry hours sign and drop the hours text into the Hours field
+    /// (appends if there's already text). Cross-platform (library on macOS too).
+    private func fillHours(from image: Data) {
+        Task {
+            isReadingHours = true
+            defer { isReadingHours = false }
+            guard let card = await CardTextRecognizer.recognize(from: image) else { return }
+            let text = hoursText(from: card.lines)
+            item.contactHours = item.contactHours.isEmpty ? text : item.contactHours + "\n" + text
+            item.dateModified = Date()
+        }
+    }
+
+    /// Keep only lines that look like store hours (a weekday token or a clock
+    /// time); fall back to all lines if the filter finds nothing.
+    private func hoursText(from lines: [String]) -> String {
+        let dayTokens = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN",
+                         "DAILY", "HOLIDAY", "OPEN", "CLOSE", "HOUR"]
+        let timeRegex = try? NSRegularExpression(
+            pattern: "\\d{1,2}(:\\d{2})?\\s?(AM|PM|A|P)\\b", options: [.caseInsensitive])
+        let kept = lines.filter { line in
+            let u = line.uppercased()
+            if dayTokens.contains(where: { u.contains($0) }) { return true }
+            if let r = timeRegex {
+                let range = NSRange(line.startIndex..., in: line)
+                return r.firstMatch(in: line, options: [], range: range) != nil
+            }
+            return false
+        }
+        return (kept.isEmpty ? lines : kept).joined(separator: "\n")
+    }
 
     // MARK: - Photos
 
