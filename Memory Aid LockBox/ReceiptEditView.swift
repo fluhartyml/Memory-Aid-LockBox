@@ -137,8 +137,9 @@ struct ReceiptEditView: View {
                 }
 
                 Section {
+                    // Monospaced so a preserved receipt layout keeps its columns.
                     TextEditor(text: $notes)
-                        .font(.system(size: 18))
+                        .font(.system(size: 12, design: .monospaced))
                         .frame(minHeight: 60)
                 } header: {
                     Text("Notes").font(.system(size: 16))
@@ -371,8 +372,12 @@ struct ReceiptEditView: View {
                 let n = heur.items.count
                 fillStatus = "Read \(n) item\(n == 1 ? "" : "s")\(store.isEmpty ? " — add the store name (it's usually a logo)." : ".")"
             } else {
-                if notes.isEmpty { notes = ocrText }   // fallback: keep raw text
-                fillStatus = "Read the text but found no line items — put the raw text in Notes."
+                // Couldn't structure it — preserve the receipt's physical layout
+                // (columns aligned) as monospaced text in Notes so nothing is lost.
+                if notes.isEmpty {
+                    notes = await CardTextRecognizer.receiptLayoutText(from: first) ?? ocrText
+                }
+                fillStatus = "Couldn't structure this receipt — saved its layout as text in Notes. Edit any line."
             }
         }
     }

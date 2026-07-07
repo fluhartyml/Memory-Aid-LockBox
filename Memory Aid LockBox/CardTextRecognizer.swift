@@ -88,6 +88,58 @@ enum CardTextRecognizer {
         return ReceiptTextParser.parseScan(frags)
     }
 
+    /// Last-resort fallback: reconstruct the receipt as monospaced text that
+    /// keeps every fragment in its PHYSICAL position — columns line up under
+    /// themselves (item names left, prices right) instead of collapsing to a
+    /// single space-joined line. Used when nothing can structure the receipt:
+    /// the layout is preserved verbatim so the user can read/edit it as-is.
+    static func receiptLayoutText(from imageData: Data) async -> String? {
+        guard let frags = await fragments(from: imageData) else { return nil }
+        return layoutText(frags)
+    }
+
+    /// Render fragments onto a character grid by their bounding boxes. Each row
+    /// is one line; a fragment starts at the column matching its left edge, so
+    /// the spacing between columns survives.
+    static func layoutText(_ frags: [(text: String, box: CGRect)]) -> String {
+        guard !frags.isEmpty else { return "" }
+
+        // Cluster fragments into rows by vertical position (larger y = higher).
+        let sorted = frags.sorted { $0.box.midY > $1.box.midY }
+        var rows: [[(text: String, box: CGRect)]] = []
+        for f in sorted {
+            if let ref = rows.last?.first,
+               abs(ref.box.midY - f.box.midY) < max(ref.box.height, f.box.height) * 0.6 {
+                rows[rows.count - 1].append(f)
+            } else {
+                rows.append([f])
+            }
+        }
+
+        // Columns-across-the-page from the median per-character width, capped so
+        // a narrow phone screen shows a row without wrapping (which would break
+        // the alignment).
+        let charWidths = frags.compactMap { f -> CGFloat? in
+            f.text.isEmpty ? nil : f.box.width / CGFloat(f.text.count)
+        }.sorted()
+        let charW = charWidths.isEmpty ? 0.025 : charWidths[charWidths.count / 2]
+        let totalCols = min(44, max(8, Int((1.0 / charW).rounded())))
+
+        return rows.map { row -> String in
+            var line: [Character] = []
+            for frag in row.sorted(by: { $0.box.minX < $1.box.minX }) {
+                let col = min(totalCols, max(0, Int((frag.box.minX * CGFloat(totalCols)).rounded())))
+                if line.count < col {
+                    line.append(contentsOf: repeatElement(" ", count: col - line.count))
+                } else if !line.isEmpty {
+                    line.append(" ")   // keep at least one space if we'd collide
+                }
+                line.append(contentsOf: frag.text)
+            }
+            return String(line)
+        }.joined(separator: "\n")
+    }
+
     static func receiptRows(from imageData: Data) async -> [String]? {
         guard let fragments = await fragments(from: imageData) else {
             return await recognize(from: imageData)?.lines   // fallback: flat lines

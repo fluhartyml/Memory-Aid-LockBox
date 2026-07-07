@@ -343,7 +343,9 @@ struct ItemDetailView: View {
                 .foregroundStyle(.secondary)
 
             TextEditor(text: $item.notes)
-                .font(.system(size: 18))
+                // Receipts keep a monospaced, column-preserved layout dump.
+                .font(.system(size: isReceiptItem ? 12 : 18,
+                              design: isReceiptItem ? .monospaced : .default))
                 .frame(minHeight: 120)
                 .scrollContentBackground(.hidden)
                 .padding(8)
