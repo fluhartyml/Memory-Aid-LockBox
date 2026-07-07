@@ -311,6 +311,17 @@ struct ReceiptEditView: View {
         Task {
             isReading = true
             defer { isReading = false }
+
+            // 1) Deterministic geometric parse — item codes paired with the
+            //    right-hand price column. The reliable path for retail receipts.
+            if let scan = await CardTextRecognizer.receiptScan(from: first), !scan.items.isEmpty {
+                applyScan(scan)
+                let n = scan.items.count
+                fillStatus = "Read \(n) item\(n == 1 ? "" : "s")\(store.isEmpty ? " — add the store name (it's usually a logo)." : ".")"
+                return
+            }
+
+            // 2) Fallbacks (non-coded / messy receipts) need the OCR text.
             guard let rows = await CardTextRecognizer.receiptRows(from: first), !rows.isEmpty else {
                 fillStatus = "Couldn't read any text. A Scan usually reads cleaner than a photo."
                 return
@@ -363,6 +374,16 @@ struct ReceiptEditView: View {
         && lineItems.allSatisfy { $0.name.isEmpty && $0.price.isEmpty }
         && attachedImages.isEmpty
         && subtotal.isEmpty && tax.isEmpty && total.isEmpty
+    }
+
+    private func applyScan(_ s: ReceiptTextParser.ReceiptScan) {
+        let existing = lineItems.filter { !$0.name.isEmpty || !$0.price.isEmpty }
+        lineItems = existing + s.items
+        if address.isEmpty, !s.address.isEmpty { address = s.address }
+        if phone.isEmpty, !s.phone.isEmpty { phone = s.phone }
+        if subtotal.isEmpty, !s.subtotal.isEmpty { subtotal = s.subtotal }
+        if tax.isEmpty, !s.tax.isEmpty { tax = s.tax }
+        if total.isEmpty, !s.total.isEmpty { total = s.total }
     }
 
     private func save() {

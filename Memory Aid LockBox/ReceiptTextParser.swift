@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import CoreGraphics
 
 enum ReceiptTextParser {
     struct Result {
@@ -21,6 +22,78 @@ enum ReceiptTextParser {
         var total: String?
         var phone: String?
         var address: String?
+    }
+
+    /// Structured result of the geometric (position-aware) scan parse.
+    struct ReceiptScan {
+        var items: [ReceiptLineItem] = []
+        var subtotal = ""
+        var tax = ""
+        var total = ""
+        var phone = ""
+        var address = ""
+    }
+
+    // MARK: - Geometric parse (uses fragment positions)
+
+    /// Parse from OCR fragments with their bounding boxes. Reliable for standard
+    /// retail receipts: real items begin with a long item/UPC CODE (headers like
+    /// GROCERY/TOYS and "Regular Price" lines do not), and prices sit in a
+    /// right-hand column. We take the code-prefixed item names top-to-bottom and
+    /// pair each with the next right-column price (items always sit above the
+    /// SUBTOTAL/TAX/TOTAL block). Totals are matched to their label's row.
+    static func parseScan(_ frags: [(text: String, box: CGRect)]) -> ReceiptScan {
+        var out = ReceiptScan()
+
+        struct Named { let name: String; let midY: CGFloat; let inlinePrice: String? }
+        var names: [Named] = []
+        for f in frags {
+            guard let r = f.text.range(of: "^[0-9]{5,}\\s+", options: .regularExpression) else { continue }
+            var rest = String(f.text[r.upperBound...])
+            var inline: String?
+            if let tp = trailingPrice(in: rest) { inline = tp.price; rest = tp.rest }
+            let name = cleanName(rest)
+            guard name.count >= 2, name.rangeOfCharacter(from: .letters) != nil else { continue }
+            names.append(Named(name: name, midY: f.box.midY, inlinePrice: inline))
+        }
+        names.sort { $0.midY > $1.midY }   // top to bottom
+
+        // Bare prices in the right-hand column, top-to-bottom.
+        var prices: [String] = frags
+            .filter { $0.box.minX > 0.5 && priceOnly($0.text) != nil }
+            .sorted { $0.box.midY > $1.box.midY }
+            .compactMap { priceOnly($0.text) }
+
+        var qi = 0
+        for nm in names {
+            let price: String
+            if let ip = nm.inlinePrice { price = ip }
+            else if qi < prices.count { price = prices[qi]; qi += 1 }
+            else { continue }
+            out.items.append(ReceiptLineItem(name: nm.name, price: price))
+        }
+
+        // Totals: nearest right-column price to each label's row.
+        let allPrices: [(value: String, midY: CGFloat)] = frags
+            .filter { $0.box.minX > 0.5 }
+            .compactMap { f in priceOnly(f.text).map { (value: $0, midY: f.box.midY) } }
+        if let y = frags.first(where: { $0.text.uppercased().contains("SUBTOTAL") })?.box.midY {
+            out.subtotal = nearestPrice(y, allPrices)
+        }
+        if let y = frags.first(where: { $0.text.uppercased().contains("TAX") })?.box.midY {
+            out.tax = nearestPrice(y, allPrices)
+        }
+        if let y = frags.first(where: {
+            let u = $0.text.uppercased(); return u.contains("TOTAL") && !u.contains("SUBTOTAL")
+        })?.box.midY {
+            out.total = nearestPrice(y, allPrices)
+        }
+
+        // Address + phone from the top of the receipt.
+        let top = frags.sorted { $0.box.midY > $1.box.midY }.prefix(8).map(\.text)
+        out.phone = firstPhone(in: Array(top)) ?? ""
+        out.address = detect(.address, in: top.joined(separator: ", ")) ?? ""
+        return out
     }
 
     static func parse(_ lines: [String]) -> Result {
@@ -100,6 +173,28 @@ enum ReceiptTextParser {
         guard let m = d.firstMatch(in: text, options: [], range: range),
               let r = Range(m.range, in: text) else { return nil }
         return String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A fragment that is JUST a price ("$7.49" → "7.49"), else nil.
+    private static func priceOnly(_ s: String) -> String? {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        guard t.range(of: "^\\$?[0-9]{1,4}\\.[0-9]{2}$", options: .regularExpression) != nil else { return nil }
+        return t.replacingOccurrences(of: "$", with: "")
+    }
+
+    /// A trailing price on an item line ("KNG HAWAIIAN 7.49" → 7.49 + the rest),
+    /// for receipts that keep the price on the same fragment as the name.
+    private static func trailingPrice(in s: String) -> (price: String, rest: String)? {
+        guard let r = s.range(of: "\\s+\\$?[0-9]{1,4}\\.[0-9]{2}\\s*[A-Za-z]{0,2}$",
+                              options: .regularExpression) else { return nil }
+        let tail = String(s[r])
+        guard let pr = tail.range(of: "[0-9]{1,4}\\.[0-9]{2}", options: .regularExpression) else { return nil }
+        return (String(tail[pr]), String(s[..<r.lowerBound]))
+    }
+
+    /// The right-column price whose row is vertically closest to `y`.
+    private static func nearestPrice(_ y: CGFloat, _ prices: [(value: String, midY: CGFloat)]) -> String {
+        prices.min(by: { abs($0.midY - y) < abs($1.midY - y) })?.value ?? ""
     }
 
     private static let metaKeywords = [

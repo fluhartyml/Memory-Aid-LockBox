@@ -63,22 +63,35 @@ enum CardTextRecognizer {
     /// vertical position and join left-to-right, so each row reads
     /// "NAME … PRICE" again — which the line-item parser needs. Language
     /// correction is off (product codes / prices shouldn't be autocorrected).
-    static func receiptRows(from imageData: Data) async -> [String]? {
-        guard let cg = uprightCGImage(from: imageData) else {
-            return await recognize(from: imageData)?.lines   // fallback: flat lines
-        }
+    /// Raw OCR fragments (text + normalized bounding box), upright, via the
+    /// classic Vision API. Shared by the row and geometric receipt parsers.
+    private static func fragments(from imageData: Data) async -> [(text: String, box: CGRect)]? {
+        guard let cg = uprightCGImage(from: imageData) else { return nil }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false
         let handler = VNImageRequestHandler(cgImage: cg, options: [:])
         try? handler.perform([request])
         guard let observations = request.results, !observations.isEmpty else { return nil }
-
-        let fragments: [(text: String, box: CGRect)] = observations.compactMap {
-            guard let s = $0.topCandidates(1).first?.string else { return nil }
-            return (s, $0.boundingBox)
+        let frags = observations.compactMap { o -> (text: String, box: CGRect)? in
+            guard let s = o.topCandidates(1).first?.string else { return nil }
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : (t, o.boundingBox)
         }
-        guard !fragments.isEmpty else { return nil }
+        return frags.isEmpty ? nil : frags
+    }
+
+    /// Position-aware receipt parse (item codes ↔ right-column prices). The
+    /// reliable path for standard retail receipts.
+    static func receiptScan(from imageData: Data) async -> ReceiptTextParser.ReceiptScan? {
+        guard let frags = await fragments(from: imageData) else { return nil }
+        return ReceiptTextParser.parseScan(frags)
+    }
+
+    static func receiptRows(from imageData: Data) async -> [String]? {
+        guard let fragments = await fragments(from: imageData) else {
+            return await recognize(from: imageData)?.lines   // fallback: flat lines
+        }
 
         // Cluster fragments into rows by vertical position (Vision origin is
         // bottom-left → larger y is higher on the page), then read each row
