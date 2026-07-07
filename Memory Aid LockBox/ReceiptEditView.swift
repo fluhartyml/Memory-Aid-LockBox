@@ -316,16 +316,22 @@ struct ReceiptEditView: View {
                 fillStatus = "Couldn't read any text. A Scan usually reads cleaner than a photo."
                 return
             }
-            if store.isEmpty, let suggested = card.suggestedTitle { store = suggested }
 
             let parsed = ReceiptTextParser.parse(card.lines)
+            // Address + phone are printed as text, so fill them. The store NAME
+            // is usually a logo (Target's bullseye), not text — don't guess it
+            // from a stray line; leave it for the user.
+            if address.isEmpty, let a = parsed.address { address = a }
+            if phone.isEmpty, let p = parsed.phone { phone = p }
+
             if !parsed.items.isEmpty {
                 let existing = lineItems.filter { !$0.name.isEmpty || !$0.price.isEmpty }
                 lineItems = existing + parsed.items
                 if subtotal.isEmpty, let s = parsed.subtotal { subtotal = s }
                 if tax.isEmpty, let t = parsed.tax { tax = t }
                 if total.isEmpty, let t = parsed.total { total = t }
-                fillStatus = "Read \(parsed.items.count) item\(parsed.items.count == 1 ? "" : "s")."
+                let n = parsed.items.count
+                fillStatus = "Read \(n) item\(n == 1 ? "" : "s")\(store.isEmpty ? " — add the store name (it's usually a logo, not text)." : ".")"
             } else {
                 if notes.isEmpty { notes = card.fullText }   // fallback: keep raw text
                 fillStatus = "Read the text but found no line items — put the raw text in Notes."

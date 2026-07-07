@@ -19,10 +19,15 @@ enum ReceiptTextParser {
         var subtotal: String?
         var tax: String?
         var total: String?
+        var phone: String?
+        var address: String?
     }
 
     static func parse(_ lines: [String]) -> Result {
         var result = Result()
+        let joined = lines.joined(separator: " ")
+        result.phone = detect(.phoneNumber, in: joined)
+        result.address = detect(.address, in: joined)
 
         for raw in lines {
             let line = raw.trimmingCharacters(in: .whitespaces)
@@ -79,7 +84,17 @@ enum ReceiptTextParser {
         return t.trimmingCharacters(in: .whitespaces)
     }
 
+    /// First NSDataDetector match of the given type (phone, address).
+    private static func detect(_ type: NSTextCheckingResult.CheckingType, in text: String) -> String? {
+        guard let d = try? NSDataDetector(types: type.rawValue) else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let m = d.firstMatch(in: text, options: [], range: range),
+              let r = Range(m.range, in: text) else { return nil }
+        return String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static let metaKeywords = [
+        "REGULAR PRICE", "REG PRICE", "SALE PRICE", "PRICE YOU PAY",
         "CHANGE", "TENDER", "CASH", "CREDIT", "DEBIT", "VISA", "MASTERCARD",
         "AMEX", "DISCOVER", "AUTH", "APPROV", "ACCOUNT", "CARD #", "PAYMENT",
         "SAVINGS", "SAVED", "LOYALTY", "MEMBER", "REWARD", "COUPON", "RETURN",
