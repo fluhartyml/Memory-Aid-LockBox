@@ -84,9 +84,11 @@ struct ItemDetailView: View {
                 // across the top of the note. "Set as Header" on any other photo
                 // moves it here.
                 if let heroData = item.imageData.first {
-                    if isCardItem {
-                        // A card scan must be shown whole, first thing — never
-                        // cropped into a banner. Other pictures list at the end.
+                    if isCardItem || isReceiptItem {
+                        // A card or receipt scan must be shown whole, first thing —
+                        // never cropped into a banner. Tap opens the full-screen
+                        // pan/pinch/zoom viewer so an unreadable OCR still lets you
+                        // read the receipt itself. Other pictures list at the end.
                         cardHeroImage(heroData)
                             .contextMenu { heroMenu(for: heroData) }
                     } else {

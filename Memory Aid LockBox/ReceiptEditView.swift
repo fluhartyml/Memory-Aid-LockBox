@@ -54,6 +54,7 @@ struct ReceiptEditView: View {
     @State private var notes = ""
     @State private var attachedImages: [Data] = []
 
+    @State private var viewingImage: Data?
     @State private var libraryItem: PhotosPickerItem?
     @State private var fillLibraryItem: PhotosPickerItem?
     @State private var showFillLibrary = false
@@ -198,6 +199,9 @@ struct ReceiptEditView: View {
                     libraryItem = nil
                 }
             }
+            #if os(iOS)
+            .sheet(item: $viewingImage) { data in ImageViewerView(imageData: data) }
+            #endif
             .photosPicker(isPresented: $showFillLibrary, selection: $fillLibraryItem, matching: .images)
             .onChange(of: fillLibraryItem) { _, item in
                 guard let item else { return }
@@ -253,6 +257,7 @@ struct ReceiptEditView: View {
         if let ui = UIImage(data: attachedImages[index]) {
             Image(uiImage: ui).resizable().scaledToFill()
                 .frame(width: 96, height: 120).clipShape(RoundedRectangle(cornerRadius: 8))
+                .onTapGesture { viewingImage = attachedImages[index] }   // tap to read it zoomed
         }
         #else
         if let ns = NSImage(data: attachedImages[index]) {
