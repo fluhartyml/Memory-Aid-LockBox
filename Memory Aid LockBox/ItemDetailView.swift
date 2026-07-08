@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import CoreLocation
+import MapKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -691,8 +692,10 @@ struct ItemDetailView: View {
         let header = "\(item.title.isEmpty ? "Receipt" : item.title) — \(df.string(from: item.receiptDate))"
 
         var coord: CLLocationCoordinate2D?
-        if !item.receiptAddress.isEmpty {
-            coord = try? await CLGeocoder().geocodeAddressString(item.receiptAddress).first?.location?.coordinate
+        if !item.receiptAddress.isEmpty,
+           let request = MKGeocodingRequest(addressString: item.receiptAddress) {
+            // New MapKit geocoding (iOS/macOS 26) — replaces deprecated CLGeocoder.
+            coord = try? await request.mapItems.first?.location.coordinate
         }
 
         let ok = await EventKitService.addReminderList(

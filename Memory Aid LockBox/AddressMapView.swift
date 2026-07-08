@@ -19,14 +19,16 @@ struct AddressMapView: View {
     /// Name shown on the pin and carried into Maps (e.g. the store/contact name).
     var placeName: String = ""
 
-    @State private var coordinate: CLLocationCoordinate2D?
-    @State private var isLooking = false
+    /// The resolved place. We hold the whole MKMapItem (not just a coordinate) so
+    /// "Directions" opens Maps on the exact geocoded result, name and all.
+    @State private var resolved: MKMapItem?
 
     var body: some View {
         Group {
-            if let coordinate {
+            if let resolved {
+                let coordinate = resolved.location.coordinate
                 Button {
-                    openInMaps(coordinate)
+                    openInMaps(resolved)
                 } label: {
                     Map(initialPosition: .region(region(for: coordinate))) {
                         Marker(placeName.isEmpty ? "Location" : placeName,
@@ -50,7 +52,7 @@ struct AddressMapView: View {
         }
         // Re-geocode when the address settles. `.task(id:)` cancels & restarts on
         // every change; the debounce means we only hit the geocoder once typing
-        // pauses (CLGeocoder is rate-limited).
+        // pauses (geocoding is rate-limited).
         .task(id: address) {
             await lookUp(address)
         }
@@ -64,8 +66,10 @@ struct AddressMapView: View {
 
     private func lookUp(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 5 else {
-            coordinate = nil
+        // MKGeocodingRequest's initializer is failable (nil for an empty/invalid
+        // address string).
+        guard trimmed.count >= 5, let request = MKGeocodingRequest(addressString: trimmed) else {
+            resolved = nil
             return
         }
         // Debounce: wait for typing to pause; cancellation (from a newer edit or
@@ -73,16 +77,14 @@ struct AddressMapView: View {
         try? await Task.sleep(for: .milliseconds(600))
         if Task.isCancelled { return }
 
-        let placemarks = try? await CLGeocoder().geocodeAddressString(trimmed)
+        // New MapKit geocoding (iOS/macOS 26): request.mapItems is an async getter.
+        let items = try? await request.mapItems
         if Task.isCancelled { return }
-        coordinate = placemarks?.first?.location?.coordinate
+        resolved = items?.first
     }
 
-    private func openInMaps(_ coord: CLLocationCoordinate2D) {
-        let item = MKMapItem(placemark: MKPlacemark(coordinate: coord))
-        item.name = placeName.isEmpty ? address : placeName
-        item.openInMaps(launchOptions: [
-            MKLaunchOptionsMapCenterKey: NSValue(mkCoordinate: coord)
-        ])
+    private func openInMaps(_ item: MKMapItem) {
+        if !placeName.isEmpty { item.name = placeName }
+        item.openInMaps(launchOptions: nil)
     }
 }
