@@ -27,6 +27,18 @@ struct JournalEntryEditView: View {
     @State private var showCamera = false
     @State private var showDatePicker = false
 
+    /// User-chosen writing size for the body editor, remembered across entries
+    /// and sessions. The slider below the editor sets it directly, in real time.
+    /// This is an ABSOLUTE point size — what you set is what you get. We do NOT
+    /// route it through the system Dynamic Type / accessibility Text Size, which
+    /// Michael finds unreliable ("useless and lies"). This control is the honest,
+    /// WYSIWYG replacement for it. See memory feedback_app_owns_text_size_not_dynamic_type.
+    @AppStorage("journalBodyFontSize") private var bodyFontBase: Double = 18
+
+    private var bodyFont: Font {
+        .system(size: bodyFontBase)
+    }
+
     /// Fixed year-month-day readout (e.g. "2026 Jul 6, 12:42 PM"), independent of
     /// the device's US month-day-year locale. Michael wants Y-M-D specifically.
     private static let ymdFormatter: DateFormatter = {
@@ -89,10 +101,29 @@ struct JournalEntryEditView: View {
 
                 Section {
                     TextEditor(text: $body_)
-                        .font(.system(size: 18))
+                        .font(bodyFont)
                         .frame(minHeight: 240)
+
+                    // Real-time writing-size control, right where you can see the
+                    // effect. Persisted (@AppStorage) so it sticks next time.
+                    HStack(spacing: 12) {
+                        Image(systemName: "textformat.size.smaller")
+                            .foregroundStyle(.secondary)
+                        Slider(value: $bodyFontBase, in: 12...36, step: 1)
+                            .accessibilityLabel("Body text size")
+                        Image(systemName: "textformat.size.larger")
+                            .foregroundStyle(.secondary)
+                        Text("\(Int(bodyFontBase))")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, alignment: .trailing)
+                    }
+                    .font(.system(size: 15))
                 } header: {
                     Text("Body").font(.system(size: 16))
+                } footer: {
+                    Text("Drag to size your writing — remembered next time, and it also scales with your system Text Size setting.")
+                        .font(.system(size: 13))
                 }
             }
             #if os(macOS)

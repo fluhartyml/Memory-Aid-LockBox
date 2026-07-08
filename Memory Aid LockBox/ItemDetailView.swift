@@ -423,7 +423,12 @@ struct ItemDetailView: View {
             DatePicker("Date & time", selection: $item.apptDate)
                 .font(.system(size: 17))
             hideable("apptPrep") { contactField("Prep / instructions", text: $item.apptPrep, systemImage: "list.clipboard") }
-            hideable("apptAddress") { contactField("Address", text: $item.apptAddress, systemImage: "mappin.and.ellipse") }
+            hideable("apptAddress") {
+                VStack(alignment: .leading, spacing: 8) {
+                    contactField("Address", text: $item.apptAddress, systemImage: "mappin.and.ellipse")
+                    AddressMapView(address: item.apptAddress, placeName: item.title)
+                }
+            }
             hideable("apptPhone") { contactField("Phone", text: $item.apptPhone, systemImage: "phone") }
 
             HStack(spacing: 12) {
@@ -519,7 +524,12 @@ struct ItemDetailView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            hideable("receiptAddress") { contactField("Address", text: $item.receiptAddress, systemImage: "mappin.and.ellipse") }
+            hideable("receiptAddress") {
+                VStack(alignment: .leading, spacing: 8) {
+                    contactField("Address", text: $item.receiptAddress, systemImage: "mappin.and.ellipse")
+                    AddressMapView(address: item.receiptAddress, placeName: item.title)
+                }
+            }
             hideable("receiptPhone") { contactField("Phone", text: $item.receiptPhone, systemImage: "phone") }
             DatePicker("Date & time", selection: $item.receiptDate).font(.system(size: 16))
 
@@ -771,7 +781,12 @@ struct ItemDetailView: View {
 
             hideable("contactPhone") { contactField("Phone", text: $item.contactPhone, systemImage: "phone") }
             hideable("contactEmail") { contactField("Email", text: $item.contactEmail, systemImage: "envelope") }
-            hideable("contactAddress") { contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse") }
+            hideable("contactAddress") {
+                VStack(alignment: .leading, spacing: 8) {
+                    contactField("Address", text: $item.contactAddress, systemImage: "mappin.and.ellipse")
+                    AddressMapView(address: item.contactAddress, placeName: item.title)
+                }
+            }
 
             if item.isBusinessContact {
                 hideable("contactWebsite") { contactField("Website", text: $item.contactWebsite, systemImage: "globe") }

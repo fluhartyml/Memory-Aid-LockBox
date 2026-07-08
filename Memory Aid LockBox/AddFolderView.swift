@@ -66,6 +66,11 @@ struct AddFolderView: View {
                                     .foregroundStyle(selectedIcon == icon ? .white : .primary)
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
+                            // Without an explicit style, SwiftUI collapses every
+                            // button in a Form cell into ONE tap target, so only a
+                            // single glyph ever registers. .plain makes each icon
+                            // independently tappable.
+                            .buttonStyle(.plain)
                         }
                     }
                 } header: {
