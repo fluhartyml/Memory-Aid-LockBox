@@ -311,9 +311,10 @@ struct ItemDetailView: View {
             if let coord = await LocationFetcher.shared.currentCoordinate() {
                 item.locationLatitude = coord.latitude
                 item.locationLongitude = coord.longitude
-                // Also drop a rendered map-pin picture into the attachments so the
-                // spot is viewable as a plain image, on top of the stored coordinate.
-                if let mapImage = await LocationMapImage.snapshotData(for: coord) {
+                // Journal only: also drop a rendered map-pin picture into the
+                // attachments so the spot is viewable as a plain image. Notes and
+                // Receipts keep just the embedded coordinate / mini-map.
+                if isJournalItem, let mapImage = await LocationMapImage.snapshotData(for: coord) {
                     item.imageData.append(mapImage)
                 }
                 item.dateModified = Date()
