@@ -77,6 +77,11 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
+            // This fires once immediately when the delegate is set (still
+            // .notDetermined) — ignore that, or we'd resume the permission wait
+            // before the user has actually responded and then read the stale
+            // undetermined status. Only resume once they've decided.
+            guard manager.authorizationStatus != .notDetermined else { return }
             authContinuation?.resume()
             authContinuation = nil
         }

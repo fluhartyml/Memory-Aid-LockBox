@@ -236,11 +236,12 @@ struct ItemDetailView: View {
             NavigationStack { ItemDetailView(item: contact) }
         }
         #if os(iOS)
-        .sheet(isPresented: $showCamera) {
+        .fullScreenCover(isPresented: $showCamera) {
             CameraCaptureView { data in
                 item.imageData.append(data)
                 item.dateModified = Date()
             }
+            .ignoresSafeArea()
         }
         .sheet(isPresented: $showScanner) {
             DocumentScannerView { pages in
