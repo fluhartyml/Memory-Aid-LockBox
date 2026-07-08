@@ -24,32 +24,35 @@ struct CameraCaptureView: UIViewControllerRepresentable {
         return picker
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
+        // Keep the coordinator pointed at the CURRENT view so its onCapture/dismiss
+        // never go stale across the parent's re-renders (which is what dropped the
+        // captured photo before returning to the compose sheet).
+        context.coordinator.parent = self
+    }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(dismiss: dismiss, onCapture: onCapture)
+        Coordinator(self)
     }
 
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let dismiss: DismissAction
-        let onCapture: (Data) -> Void
+        var parent: CameraCaptureView
 
-        init(dismiss: DismissAction, onCapture: @escaping (Data) -> Void) {
-            self.dismiss = dismiss
-            self.onCapture = onCapture
+        init(_ parent: CameraCaptureView) {
+            self.parent = parent
         }
 
         func imagePickerController(_ picker: UIImagePickerController,
                                    didFinishPickingMediaWith info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage,
+            if let image = (info[.editedImage] ?? info[.originalImage]) as? UIImage,
                let data = image.jpegData(compressionQuality: 0.8) {
-                onCapture(data)
+                parent.onCapture(data)
             }
-            dismiss()
+            parent.dismiss()
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            dismiss()
+            parent.dismiss()
         }
     }
 }

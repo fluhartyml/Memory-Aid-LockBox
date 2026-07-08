@@ -25,7 +25,7 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var authContinuation: CheckedContinuation<Void, Never>?
-    private var locationContinuation: CheckedContinuation<CLLocation?, Never>?
+    private var locationContinuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
 
     override init() {
         super.init()
@@ -47,11 +47,32 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         default:
             return nil
         }
-        let location = await withCheckedContinuation { (cont: CheckedContinuation<CLLocation?, Never>) in
-            locationContinuation = cont
-            manager.requestLocation()
+
+        // Fast path: a recent cached fix.
+        if let loc = manager.location, loc.horizontalAccuracy >= 0,
+           abs(loc.timestamp.timeIntervalSinceNow) < 60 {
+            return loc.coordinate
         }
-        return location?.coordinate
+
+        // Otherwise stream updates and take the first good fix. One-shot
+        // requestLocation() routinely fails right after the permission grant
+        // (no fix yet); streaming + a timeout backstop is reliable.
+        return await withCheckedContinuation { (cont: CheckedContinuation<CLLocationCoordinate2D?, Never>) in
+            locationContinuation = cont
+            manager.startUpdatingLocation()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(10))
+                finish(nil)
+            }
+        }
+    }
+
+    /// Resume the pending location wait exactly once and stop the stream.
+    private func finish(_ coordinate: CLLocationCoordinate2D?) {
+        guard let cont = locationContinuation else { return }
+        locationContinuation = nil
+        manager.stopUpdatingLocation()
+        cont.resume(returning: coordinate)
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -63,15 +84,19 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
-            locationContinuation?.resume(returning: locations.last)
-            locationContinuation = nil
+            if let loc = locations.last, loc.horizontalAccuracy >= 0 {
+                finish(loc.coordinate)
+            }
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
-            locationContinuation?.resume(returning: nil)
-            locationContinuation = nil
+            // Only give up on a hard denial; transient "location unknown" errors are
+            // expected while acquiring a fix — keep waiting (up to the timeout).
+            if let clError = error as? CLError, clError.code == .denied {
+                finish(nil)
+            }
         }
     }
 }
