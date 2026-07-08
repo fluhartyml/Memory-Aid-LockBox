@@ -142,10 +142,21 @@ enum EventKitService {
         if let location {
             let structured = EKStructuredLocation(title: locationTitle.isEmpty ? "Store" : locationTitle)
             structured.geoLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
+            structured.radius = 100   // meters — explicit geofence so "arriving" actually fires (default 0 is unreliable)
             let alarm = EKAlarm()
             alarm.structuredLocation = structured
             alarm.proximity = .enter
             reminder.addAlarm(alarm)
+
+            // A reminder that carries an alarm but no date makes EventKit warn
+            // that the trigger is an undefined "duration" alarm. Anchor it with a
+            // START date (not a due date) so the trigger is well-defined — a start
+            // date shows no notification on its own, so the location alarm stays
+            // the only thing that fires.
+            if reminder.dueDateComponents == nil {
+                reminder.startDateComponents = Calendar.current.dateComponents(
+                    [.year, .month, .day], from: due ?? Date())
+            }
         }
         return reminder
     }
