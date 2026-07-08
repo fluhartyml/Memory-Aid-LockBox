@@ -177,11 +177,18 @@ struct ItemDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
+                    #if os(iOS)
                     Button {
                         showShareSheet = true
                     } label: {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
+                    #else
+                    // macOS shares the record's text summary via the standard menu.
+                    ShareLink(item: RecordShare.summary(for: item)) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    #endif
                     if isApptItem {
                         Button {
                             shareAppointmentICS()
