@@ -160,8 +160,12 @@ struct JournalEntryEditView: View {
                 }
             }
             #if os(iOS)
-            .sheet(isPresented: $showCamera) {
+            // Full-screen cover (not a sheet): the camera is full-screen and
+            // presenting a sheet from within this view's own fullScreenCover drops
+            // the captured result. A cover-over-cover delivers reliably.
+            .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView { data in headerImage = [data] }
+                    .ignoresSafeArea()
             }
             #endif
             .onChange(of: libraryItem) { _, item in
