@@ -67,6 +67,16 @@ struct ItemDetailView: View {
         item.isReceipt || item.folder?.template == .receipts
     }
 
+    private var isNotesItem: Bool {
+        item.folder?.template == .customNotes
+    }
+
+    /// Records that offer the manual "Tag location" button (where the record was
+    /// created): Notes, Journal, Receipts.
+    private var showsTaggedLocation: Bool {
+        isNotesItem || isJournalItem || isReceiptItem
+    }
+
     @State private var apptStatus: String?
     @State private var receiptStatus: String?
     #if os(iOS)
@@ -159,6 +169,11 @@ struct ItemDetailView: View {
                 // User-added custom fields (roadmap 005b), if this folder defines any.
                 if let folder = item.folder, !folder.customFields.isEmpty {
                     customFieldsSection(folder)
+                }
+
+                // "Tagged location" — where the record was created (manual).
+                if showsTaggedLocation {
+                    taggedLocationSection
                 }
 
                 // Image shown large in the space below Notes
@@ -288,14 +303,14 @@ struct ItemDetailView: View {
         #endif
     }
 
-    #if os(iOS)
-    /// Capture the current location as a map image (GPS embedded) and add it to
-    /// the note's attachment list.
-    private func captureLocation() {
+    /// Manual "Tag location" — capture the device's current coordinate and store
+    /// it on the record (where it was created). Cross-platform (iOS + macOS).
+    private func tagCurrentLocation() {
         Task {
             capturingLocation = true
-            if let data = await LocationMapCapture.captureCurrentLocationMap() {
-                item.imageData.append(data)
+            if let coord = await LocationFetcher.shared.currentCoordinate() {
+                item.locationLatitude = coord.latitude
+                item.locationLongitude = coord.longitude
                 item.dateModified = Date()
             } else {
                 showLocationError = true
@@ -303,7 +318,49 @@ struct ItemDetailView: View {
             capturingLocation = false
         }
     }
-    #endif
+
+    /// "Where this record was created" — a manual tag button, and once tagged, a
+    /// tappable mini-map (→ Apple Maps). Shown on Notes / Journal / Receipts.
+    @ViewBuilder
+    private var taggedLocationSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Location")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            if let lat = item.locationLatitude, let lon = item.locationLongitude {
+                MiniMapCard(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                            placeName: item.title)
+                Button {
+                    item.locationLatitude = nil
+                    item.locationLongitude = nil
+                    item.dateModified = Date()
+                } label: {
+                    Label("Remove location", systemImage: "trash")
+                        .font(.system(size: 15))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+            } else {
+                Button {
+                    tagCurrentLocation()
+                } label: {
+                    HStack(spacing: 8) {
+                        if capturingLocation {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "mappin.and.ellipse").font(.system(size: 16))
+                        }
+                        Text(capturingLocation ? "Tagging…" : "Tag current location")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .disabled(capturingLocation)
+            }
+        }
+    }
 
     // MARK: - PIN Display
 
@@ -1082,22 +1139,6 @@ struct ItemDetailView: View {
                             .font(.system(size: 14))
                     }
                 }
-
-                Button {
-                    captureLocation()
-                } label: {
-                    VStack(spacing: 4) {
-                        if capturingLocation {
-                            ProgressView().frame(height: 24)
-                        } else {
-                            Image(systemName: "location.circle")
-                                .font(.system(size: 24))
-                        }
-                        Text("Location")
-                            .font(.system(size: 14))
-                    }
-                }
-                .disabled(capturingLocation)
                 #endif
 
                 Spacer()

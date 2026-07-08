@@ -43,6 +43,12 @@ struct SidebarView: View {
         #endif
     }
 
+    /// Item + media count for a folder. Pulled out of the row's string
+    /// interpolation so the type-checker doesn't time out on the optional math.
+    private func folderCount(_ folder: Folder) -> Int {
+        (folder.items?.count ?? 0) + (folder.mediaAssets?.count ?? 0)
+    }
+
     private var folderList: some View {
         List(selection: $selectedFolder) {
             ForEach(folders) { folder in
@@ -56,7 +62,7 @@ struct SidebarView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(vaultLock.isUnlocked ? Color.secondary : Color.blue)
                             .accessibilityLabel(vaultLock.isUnlocked ? "Unlocked" : "Locked")
-                        Text("\((folder.items?.count ?? 0) + (folder.mediaAssets?.count ?? 0))")
+                        Text("\(folderCount(folder))")
                             .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     }

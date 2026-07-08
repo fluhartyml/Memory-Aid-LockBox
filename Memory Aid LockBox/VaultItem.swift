@@ -32,6 +32,12 @@ final class VaultItem {
     /// to zoom the hero so it can be reframed in any direction.
     var headerZoom: Double = 1.0
 
+    // Manually tagged "created here" location (the Tag-location button on
+    // Notes / Journal / Receipts). Optional so a record simply has no location
+    // until the user taps to tag it; CloudKit-safe as optionals.
+    var locationLatitude: Double?
+    var locationLongitude: Double?
+
     // Secure-contact fields. Used when the item is a contact card (the name is
     // the item's `title`). Empty for a normal note. All defaulted for CloudKit.
     var contactPhone: String = ""

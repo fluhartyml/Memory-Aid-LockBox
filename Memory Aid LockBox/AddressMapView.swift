@@ -26,28 +26,7 @@ struct AddressMapView: View {
     var body: some View {
         Group {
             if let resolved {
-                let coordinate = resolved.location.coordinate
-                Button {
-                    openInMaps(resolved)
-                } label: {
-                    Map(initialPosition: .region(region(for: coordinate))) {
-                        Marker(placeName.isEmpty ? "Location" : placeName,
-                               coordinate: coordinate)
-                    }
-                    // The mini-map is a preview, not an interactive map — let the
-                    // tap fall through to the Button so it opens full Maps.
-                    .allowsHitTesting(false)
-                    .frame(height: 150)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(alignment: .bottomTrailing) {
-                        Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(8)
-                    }
-                }
-                .buttonStyle(.plain)
+                MiniMapCard(coordinate: resolved.location.coordinate, placeName: placeName)
             }
         }
         // Re-geocode when the address settles. `.task(id:)` cancels & restarts on
@@ -56,12 +35,6 @@ struct AddressMapView: View {
         .task(id: address) {
             await lookUp(address)
         }
-    }
-
-    private func region(for coord: CLLocationCoordinate2D) -> MKCoordinateRegion {
-        MKCoordinateRegion(center: coord,
-                           span: MKCoordinateSpan(latitudeDelta: 0.01,
-                                                  longitudeDelta: 0.01))
     }
 
     private func lookUp(_ text: String) async {
@@ -82,9 +55,49 @@ struct AddressMapView: View {
         if Task.isCancelled { return }
         resolved = items?.first
     }
+}
 
-    private func openInMaps(_ item: MKMapItem) {
-        if !placeName.isEmpty { item.name = placeName }
-        item.openInMaps(launchOptions: nil)
+/// The tappable mini-map card: a static map preview centered on a coordinate
+/// that opens Apple Maps for directions when tapped. Shared by AddressMapView
+/// (a geocoded address) and the "Tag location" feature on Notes/Journal/Receipts
+/// (a stored coordinate). Cross-platform (iOS + macOS).
+struct MiniMapCard: View {
+    let coordinate: CLLocationCoordinate2D
+    var placeName: String = ""
+
+    var body: some View {
+        Button {
+            openInMaps()
+        } label: {
+            Map(initialPosition: .region(region)) {
+                Marker(placeName.isEmpty ? "Location" : placeName, coordinate: coordinate)
+            }
+            // The mini-map is a preview, not an interactive map — let the tap
+            // fall through to the Button so it opens full Maps.
+            .allowsHitTesting(false)
+            .frame(height: 150)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(alignment: .bottomTrailing) {
+                Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(8)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var region: MKCoordinateRegion {
+        MKCoordinateRegion(center: coordinate,
+                           span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+    }
+
+    private func openInMaps() {
+        let mapItem = MKMapItem(location: CLLocation(latitude: coordinate.latitude,
+                                                     longitude: coordinate.longitude),
+                                address: nil)
+        if !placeName.isEmpty { mapItem.name = placeName }
+        mapItem.openInMaps(launchOptions: nil)
     }
 }

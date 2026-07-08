@@ -24,5 +24,10 @@
 	     build. iOS ignores this and uses the NSCalendars/NSReminders prompts. -->
 	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
+	<!-- macOS App Sandbox: location access for the manual "Tag location" button
+	     on Notes/Journal/Receipts. iOS ignores this and uses the
+	     NSLocationWhenInUseUsageDescription prompt. -->
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
 </dict>
 </plist>
