@@ -22,7 +22,7 @@ enum JournalExporter {
         let date: Date
         let title: String
         let body: String
-        let headerImage: Data?
+        let images: [Data]   // hero first, then the rest of the entry's attachments
     }
 
     private static var posix: Locale { Locale(identifier: "en_US_POSIX") }
@@ -55,12 +55,14 @@ enum JournalExporter {
                 let fileBase = base.isEmpty ? "entry-\(i)" : base
 
                 var md = "---\ntitle: \(yaml(e.title))\ndate: \(iso.string(from: e.date))\n---\n\n\(e.body)\n"
-                if let img = e.headerImage {
+                // Every image for this entry: hero as "{base}.jpg", the rest as
+                // "{base}-2.jpg", "{base}-3.jpg"… all linked inline, hero first.
+                for (j, img) in e.images.enumerated() {
                     if !madeAttachments {
                         try fm.createDirectory(at: attachments, withIntermediateDirectories: true)
                         madeAttachments = true
                     }
-                    let imgName = "\(fileBase).jpg"
+                    let imgName = j == 0 ? "\(fileBase).jpg" : "\(fileBase)-\(j + 1).jpg"
                     try img.write(to: attachments.appendingPathComponent(imgName))
                     md += "\n![](attachments/\(imgName))\n"
                 }
@@ -138,7 +140,9 @@ private struct JournalPDFDocument: View {
                         .foregroundStyle(.gray)
                     Text(entry.title.isEmpty ? "Untitled Entry" : entry.title)
                         .font(.system(size: 20, weight: .semibold))
-                    entryImage(entry.headerImage)
+                    ForEach(Array(entry.images.enumerated()), id: \.offset) { _, data in
+                        entryImage(data)
+                    }
                     Text(entry.body)
                         .font(.system(size: 13))
                     Divider()
@@ -152,18 +156,16 @@ private struct JournalPDFDocument: View {
     }
 
     @ViewBuilder
-    private func entryImage(_ data: Data?) -> some View {
-        if let data {
-            #if canImport(UIKit)
-            if let ui = UIImage(data: data) {
-                Image(uiImage: ui).resizable().scaledToFit().frame(maxWidth: 400, maxHeight: 300, alignment: .leading)
-            }
-            #else
-            if let ns = NSImage(data: data) {
-                Image(nsImage: ns).resizable().scaledToFit().frame(maxWidth: 400, maxHeight: 300, alignment: .leading)
-            }
-            #endif
+    private func entryImage(_ data: Data) -> some View {
+        #if canImport(UIKit)
+        if let ui = UIImage(data: data) {
+            Image(uiImage: ui).resizable().scaledToFit().frame(maxWidth: 400, maxHeight: 300, alignment: .leading)
         }
+        #else
+        if let ns = NSImage(data: data) {
+            Image(nsImage: ns).resizable().scaledToFit().frame(maxWidth: 400, maxHeight: 300, alignment: .leading)
+        }
+        #endif
     }
 }
 

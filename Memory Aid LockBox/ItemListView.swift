@@ -260,7 +260,7 @@ struct ItemListView: View {
     private var journalEntries: [JournalExporter.Entry] {
         filteredItems.map {
             JournalExporter.Entry(date: $0.journalDate, title: $0.title,
-                                  body: $0.notes, headerImage: $0.imageData.first)
+                                  body: $0.notes, images: $0.imageData)
         }
     }
 
