@@ -2,13 +2,20 @@
 //  LocationMapCapture.swift
 //  Memory Aid LockBox
 //
-//  One-shot current-location fetch used by the manual "Tag location" button on
-//  Notes / Journal / Receipts. Returns a coordinate the record stores; the
-//  coordinate is later shown as a tappable mini-map (see MiniMapCard). Works on
-//  iOS, iPadOS, and macOS — nothing here is platform-specific.
+//  Manual "Tag location" support for Notes / Journal / Receipts:
+//   • LocationFetcher — one-shot current-coordinate fetch (iOS + macOS).
+//   • LocationMapImage — renders a map snapshot with a centered pin, added to the
+//     record's attachments so the location is also viewable as a plain picture
+//     (alongside the stored coordinate / tappable mini-map).
 //
 
 import CoreLocation
+import MapKit
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// One-shot current-location fetch. Requests "While Using" permission the first
 /// time; returns nil if permission is denied or no fix can be obtained.
@@ -67,4 +74,59 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
             locationContinuation = nil
         }
     }
+}
+
+enum LocationMapImage {
+    /// Render a square map snapshot centered on `coordinate` with a red pin at the
+    /// center, returned as JPEG data for use as a record attachment. Because the
+    /// snapshot is centered on the coordinate, the pin is drawn at the image
+    /// center — no coordinate→point mapping (and no AppKit/UIKit y-flip pitfall).
+    /// Returns nil on snapshot failure.
+    static func snapshotData(for coordinate: CLLocationCoordinate2D, points: CGFloat = 600) async -> Data? {
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(center: coordinate,
+                                            latitudinalMeters: 700,
+                                            longitudinalMeters: 700)
+        options.size = CGSize(width: points, height: points)
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        guard let snapshot = try? await snapshotter.start() else { return nil }
+        return composite(snapshot)
+    }
+
+    #if canImport(UIKit)
+    private static func composite(_ snapshot: MKMapSnapshotter.Snapshot) -> Data? {
+        let image = snapshot.image
+        let composited = UIGraphicsImageRenderer(size: image.size).image { _ in
+            image.draw(at: .zero)
+            let markerSize: CGFloat = 44
+            let center = CGPoint(x: image.size.width / 2, y: image.size.height / 2)
+            UIImage(systemName: "mappin.circle.fill")?
+                .withTintColor(.systemRed, renderingMode: .alwaysOriginal)
+                .draw(in: CGRect(x: center.x - markerSize / 2, y: center.y - markerSize / 2,
+                                 width: markerSize, height: markerSize))
+        }
+        return composited.jpegData(compressionQuality: 0.9)
+    }
+    #elseif canImport(AppKit)
+    private static func composite(_ snapshot: MKMapSnapshotter.Snapshot) -> Data? {
+        let image = snapshot.image
+        let size = image.size
+        let composed = NSImage(size: size)
+        composed.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: size))
+        let markerSize: CGFloat = 44
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let config = NSImage.SymbolConfiguration(paletteColors: [.systemRed])
+        NSImage(systemSymbolName: "mappin.circle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)?
+            .draw(in: NSRect(x: center.x - markerSize / 2, y: center.y - markerSize / 2,
+                             width: markerSize, height: markerSize))
+        composed.unlockFocus()
+
+        guard let tiff = composed.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
+    }
+    #endif
 }
