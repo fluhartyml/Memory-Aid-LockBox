@@ -37,6 +37,8 @@ struct CustomNotesEditView: View {
     @State private var libraryItem: PhotosPickerItem?
     @State private var viewingImage: ViewableImage?
     @State private var isReadingCard = false
+    @State private var taggedLat: Double?
+    @State private var taggedLon: Double?
 
     private struct ViewableImage: Identifiable {
         let id = UUID()
@@ -85,6 +87,16 @@ struct CustomNotesEditView: View {
                         Text("\"Fill from image\" reads the image with on-device text recognition and fills any empty fields — you can edit them before saving.")
                             .font(.system(size: 13))
                     }
+                }
+
+                Section {
+                    TagLocationControl(latitude: $taggedLat, longitude: $taggedLon,
+                                       placeName: title)
+                } header: {
+                    Text("Location").font(.system(size: 16))
+                } footer: {
+                    Text("Tag where you made this note — adds a map pin you can open in Maps.")
+                        .font(.system(size: 13))
                 }
             }
             #if os(macOS)
@@ -290,6 +302,8 @@ struct CustomNotesEditView: View {
             folder: folder
         )
         newItem.imageData = attachedImages
+        newItem.locationLatitude = taggedLat
+        newItem.locationLongitude = taggedLon
         modelContext.insert(newItem)
         dismiss()
     }

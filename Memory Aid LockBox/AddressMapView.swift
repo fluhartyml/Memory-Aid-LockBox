@@ -101,3 +101,67 @@ struct MiniMapCard: View {
         mapItem.openInMaps(launchOptions: nil)
     }
 }
+
+/// The manual "Tag current location" control for a compose sheet (Notes /
+/// Journal / Receipts). Tapping grabs the device's current coordinate into the
+/// bindings; once tagged it shows the mini-map + a Remove option. For Journal,
+/// pass `appendImageTo` so a rendered map-pin picture is also added to the
+/// entry's attachments. Cross-platform.
+struct TagLocationControl: View {
+    @Binding var latitude: Double?
+    @Binding var longitude: Double?
+    var placeName: String = ""
+    /// If provided, tagging also appends a rendered map-pin image here (Journal).
+    var appendImageTo: Binding<[Data]>? = nil
+
+    @State private var busy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let lat = latitude, let lon = longitude {
+                MiniMapCard(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                            placeName: placeName)
+                Button {
+                    latitude = nil
+                    longitude = nil
+                } label: {
+                    Label("Remove location", systemImage: "trash").font(.system(size: 15))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+            } else {
+                Button {
+                    tag()
+                } label: {
+                    HStack(spacing: 8) {
+                        if busy {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "mappin.and.ellipse").font(.system(size: 16))
+                        }
+                        Text(busy ? "Tagging…" : "Tag current location")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .disabled(busy)
+            }
+        }
+    }
+
+    private func tag() {
+        Task {
+            busy = true
+            if let coord = await LocationFetcher.shared.currentCoordinate() {
+                latitude = coord.latitude
+                longitude = coord.longitude
+                if let bind = appendImageTo,
+                   let img = await LocationMapImage.snapshotData(for: coord) {
+                    bind.wrappedValue.append(img)
+                }
+            }
+            busy = false
+        }
+    }
+}

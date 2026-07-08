@@ -27,6 +27,11 @@ struct JournalEntryEditView: View {
     @State private var showCamera = false
     @State private var showDatePicker = false
 
+    // Manually tagged "written here" location + the map-pin picture it adds.
+    @State private var taggedLat: Double?
+    @State private var taggedLon: Double?
+    @State private var locationImages: [Data] = []
+
     /// User-chosen writing size for the body editor, remembered across entries
     /// and sessions. The slider below the editor sets it directly, in real time.
     /// This is an ABSOLUTE point size — what you set is what you get. We do NOT
@@ -122,7 +127,17 @@ struct JournalEntryEditView: View {
                 } header: {
                     Text("Body").font(.system(size: 16))
                 } footer: {
-                    Text("Drag to size your writing — remembered next time, and it also scales with your system Text Size setting.")
+                    Text("Drag to size your writing — remembered next time. What you set is the size you get.")
+                        .font(.system(size: 13))
+                }
+
+                Section {
+                    TagLocationControl(latitude: $taggedLat, longitude: $taggedLon,
+                                       placeName: title, appendImageTo: $locationImages)
+                } header: {
+                    Text("Location").font(.system(size: 16))
+                } footer: {
+                    Text("Tag where you're writing this — adds a map pin you can open in Maps.")
                         .font(.system(size: 13))
                 }
             }
@@ -221,7 +236,9 @@ struct JournalEntryEditView: View {
                              folder: folder)
         item.isJournal = true
         item.journalDate = entryDate
-        item.imageData = headerImage
+        item.imageData = headerImage + locationImages
+        item.locationLatitude = taggedLat
+        item.locationLongitude = taggedLon
         modelContext.insert(item)
         dismiss()
     }

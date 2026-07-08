@@ -62,6 +62,8 @@ struct ReceiptEditView: View {
     @State private var fillStatus: String?
     @State private var pendingFillAfterScan = false
     @State private var activeSheet: ReceiptSheet?
+    @State private var taggedLat: Double?
+    @State private var taggedLon: Double?
     #if os(macOS)
     @State private var showScannerMac = false
     #endif
@@ -144,6 +146,16 @@ struct ReceiptEditView: View {
                         .frame(minHeight: 60)
                 } header: {
                     Text("Notes").font(.system(size: 16))
+                }
+
+                Section {
+                    TagLocationControl(latitude: $taggedLat, longitude: $taggedLon,
+                                       placeName: store)
+                } header: {
+                    Text("Location").font(.system(size: 16))
+                } footer: {
+                    Text("Tag where you got this receipt — adds a map pin you can open in Maps.")
+                        .font(.system(size: 13))
                 }
             }
             #if os(macOS)
@@ -425,6 +437,8 @@ struct ReceiptEditView: View {
         item.receiptPaymentType = paymentType
         item.receiptCardLast4 = cardLast4
         item.imageData = attachedImages
+        item.locationLatitude = taggedLat
+        item.locationLongitude = taggedLon
         modelContext.insert(item)
         dismiss()
     }
