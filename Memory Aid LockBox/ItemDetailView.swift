@@ -31,6 +31,7 @@ struct ItemDetailView: View {
     @State private var capturingLocation = false
     @State private var showLocationError = false
     @State private var showAddContact = false
+    @State private var createdContact: VaultItem?
     @State private var contactShareFile: ShareableFile?
     @State private var isReadingContact = false
     @State private var showHoursScanner = false
@@ -206,6 +207,10 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showMoveCopy) {
             MoveCopyView(item: item)
+        }
+        // "Add store to Contacts" opens straight to the new contact it created.
+        .sheet(item: $createdContact) { contact in
+            NavigationStack { ItemDetailView(item: contact) }
         }
         #if os(iOS)
         .sheet(isPresented: $showCamera) {
@@ -608,6 +613,7 @@ struct ItemDetailView: View {
 
         modelContext.insert(new)
         receiptStatus = "Added \(name) to Contacts\(logoData != nil ? " with its logo" : "")."
+        createdContact = new   // open straight to the new store contact
     }
 
     /// Editable totals / payment row — label stays visible so a bare number
@@ -677,6 +683,18 @@ struct ItemDetailView: View {
         receiptStatus = ok
             ? "Shopping list \"\(header)\" added to Reminders\(coord == nil ? "" : " (reminds you at the store)")."
             : "Couldn't add — check Reminders access in Settings."
+        if ok { openRemindersApp() }
+    }
+
+    /// Jump to Apple Reminders after building the list. iOS has no public deep
+    /// link to a SPECIFIC list, so this opens the Reminders app (the new list is
+    /// right there); a no-op if the scheme is unavailable.
+    private func openRemindersApp() {
+        #if os(iOS)
+        if let url = URL(string: "x-apple-reminderkit://") {
+            UIApplication.shared.open(url)
+        }
+        #endif
     }
 
     // MARK: - Journal
