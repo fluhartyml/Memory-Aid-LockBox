@@ -95,6 +95,10 @@ struct ItemListView: View {
                             Button { exportJournal(asPDF: true) } label: {
                                 Label("Export PDF", systemImage: "doc.richtext")
                             }
+                            // ENEX — parallel, droppable module (Apple Notes import).
+                            Button { exportENEX() } label: {
+                                Label("Export Evernote (.enex)", systemImage: "note.text")
+                            }
                         }
                     } label: {
                         Label("Folder options", systemImage: "ellipsis.circle")
@@ -268,6 +272,15 @@ struct ItemListView: View {
         let url = asPDF
             ? JournalExporter.pdf(folderName: folder.name, entries: journalEntries)
             : JournalExporter.markdownArchive(folderName: folder.name, entries: journalEntries)
+        deliverExport(url)
+    }
+
+    /// Evernote .enex export (parallel, droppable — see ENEXExporter).
+    private func exportENEX() {
+        deliverExport(ENEXExporter.export(folderName: folder.name, entries: journalEntries))
+    }
+
+    private func deliverExport(_ url: URL?) {
         guard let url else { return }
         #if os(iOS)
         exportFile = ExportFile(url: url)
