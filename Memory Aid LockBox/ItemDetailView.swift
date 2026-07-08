@@ -1384,7 +1384,18 @@ private struct HeaderImageBanner: View {
 private struct PresentCardView: View {
     @Environment(\.dismiss) private var dismiss
     let imageData: Data?
-    @State private var priorBrightness: CGFloat = UIScreen.main.brightness
+    /// The brightness to restore on dismiss. Optional so we only ever restore a
+    /// value we actually captured — if no screen was available we leave it be.
+    @State private var priorBrightness: CGFloat?
+
+    /// The current screen via the active window scene — the iOS 26 replacement
+    /// for the deprecated global `UIScreen.main`.
+    private var activeScreen: UIScreen? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .screen
+    }
 
     var body: some View {
         ZStack {
@@ -1411,10 +1422,16 @@ private struct PresentCardView: View {
             }
         }
         .onAppear {
-            priorBrightness = UIScreen.main.brightness
-            UIScreen.main.brightness = 1.0
+            if let screen = activeScreen {
+                priorBrightness = screen.brightness
+                screen.brightness = 1.0
+            }
         }
-        .onDisappear { UIScreen.main.brightness = priorBrightness }
+        .onDisappear {
+            if let prior = priorBrightness, let screen = activeScreen {
+                screen.brightness = prior
+            }
+        }
     }
 }
 #endif
