@@ -18,6 +18,8 @@ struct SidebarView: View {
     @Binding var showResetVaultConfirm: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(VaultLock.self) private var vaultLock
+    @State private var editingFolder: Folder?
+    @State private var folderPendingDelete: Folder?
 
     var body: some View {
         #if os(iOS)
@@ -72,8 +74,41 @@ struct SidebarView: View {
                 }
                 .tag(folder)
                 .draggable(folder.name)
+                // Long-press (iOS) / right-click (macOS) to edit or delete a
+                // folder. Swipe-to-delete was removed: it was too easy to trigger
+                // by accident, and deleting a folder takes everything in it.
+                .contextMenu {
+                    Button {
+                        editingFolder = folder
+                    } label: {
+                        Label("Edit Folder", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        folderPendingDelete = folder
+                    } label: {
+                        Label("Delete Folder", systemImage: "trash")
+                    }
+                }
             }
-            .onDelete(perform: deleteFolders)
+        }
+        .sheet(item: $editingFolder) { folder in
+            AddFolderView(folderToEdit: folder)
+        }
+        .confirmationDialog(
+            "Delete “\(folderPendingDelete?.name ?? "")”?",
+            isPresented: Binding(
+                get: { folderPendingDelete != nil },
+                set: { if !$0 { folderPendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Folder", role: .destructive) {
+                if let folder = folderPendingDelete { deleteFolder(folder) }
+                folderPendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { folderPendingDelete = nil }
+        } message: {
+            Text("This removes the folder and everything in it. This can't be undone.")
         }
     }
 
@@ -152,9 +187,10 @@ struct SidebarView: View {
         }
     }
 
-    private func deleteFolders(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(folders[index])
-        }
+    private func deleteFolder(_ folder: Folder) {
+        // Clear the selection first if we're deleting the open folder, so the
+        // detail pane doesn't hold a reference to a deleted record.
+        if selectedFolder == folder { selectedFolder = nil }
+        modelContext.delete(folder)
     }
 }
