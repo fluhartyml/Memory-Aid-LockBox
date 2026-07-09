@@ -1152,11 +1152,16 @@ struct ItemDetailView: View {
             }
 
             // The first image is the header banner at the top, so list the
-            // remaining attachments here.
+            // remaining attachments here. Each row is keyed by its position and
+            // handed the image Data BY VALUE — the row body never re-subscripts
+            // the live `item.imageData` array. That's deliberate: subscripting by
+            // a stored index inside the row crashes ("index out of range") the
+            // instant a page is deleted, because SwiftUI briefly re-renders the
+            // disappearing row with an index the shrunken array no longer has.
             if item.imageData.count > 1 {
                 VStack(spacing: 12) {
-                    ForEach(Array(item.imageData.indices.dropFirst()), id: \.self) { index in
-                        photoThumbnail(at: index)
+                    ForEach(Array(item.imageData.enumerated().dropFirst()), id: \.offset) { offset, data in
+                        photoThumbnail(data: data, at: offset)
                     }
                 }
             }
@@ -1216,10 +1221,14 @@ struct ItemDetailView: View {
         }
     }
 
+    /// One attachment row. `data` is the image bytes handed in by value (used for
+    /// display and full-size view); `index` is only read at the moment a menu
+    /// action fires, and every array mutation is bounds-guarded so a stale index
+    /// can never crash.
     @ViewBuilder
-    private func photoThumbnail(at index: Int) -> some View {
+    private func photoThumbnail(data: Data, at index: Int) -> some View {
         #if canImport(UIKit)
-        if let uiImage = UIImage(data: item.imageData[index]) {
+        if let uiImage = UIImage(data: data) {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFit()
@@ -1227,11 +1236,11 @@ struct ItemDetailView: View {
                 .frame(maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .onTapGesture {
-                    viewingImage = item.imageData[index]
+                    viewingImage = data
                 }
                 .contextMenu {
                     Button {
-                        viewingImage = item.imageData[index]
+                        viewingImage = data
                     } label: {
                         Label("View Full Size", systemImage: "arrow.up.left.and.arrow.down.right")
                     }
@@ -1241,15 +1250,14 @@ struct ItemDetailView: View {
                         Label("Set as Header", systemImage: "photo")
                     }
                     Button(role: .destructive) {
-                        item.imageData.remove(at: index)
-                        item.dateModified = Date()
+                        deleteAttachment(at: index)
                     } label: {
                         Label("Delete Page", systemImage: "trash")
                     }
                 }
         }
         #else
-        if let nsImage = NSImage(data: item.imageData[index]) {
+        if let nsImage = NSImage(data: data) {
             Image(nsImage: nsImage)
                 .resizable()
                 .scaledToFit()
@@ -1263,14 +1271,22 @@ struct ItemDetailView: View {
                         Label("Set as Header", systemImage: "photo")
                     }
                     Button(role: .destructive) {
-                        item.imageData.remove(at: index)
-                        item.dateModified = Date()
+                        deleteAttachment(at: index)
                     } label: {
                         Label("Delete Photo", systemImage: "trash")
                     }
                 }
         }
         #endif
+    }
+
+    /// Remove the attachment at `index`, bounds-checked. Guarding here (rather
+    /// than a bare `remove(at:)`) is what makes deleting a page safe even if the
+    /// row's captured index is momentarily out of step with the array.
+    private func deleteAttachment(at index: Int) {
+        guard item.imageData.indices.contains(index) else { return }
+        item.imageData.remove(at: index)
+        item.dateModified = Date()
     }
 
     /// Move the attachment at `index` to the front so it becomes the header image.
