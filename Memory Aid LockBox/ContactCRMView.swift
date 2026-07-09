@@ -36,17 +36,17 @@ struct ContactCRMView: View {
     private var followUpBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Follow-up")
-                .font(.title3.weight(.semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.secondary)
             Toggle("Remind me to reach out", isOn: $item.followUpEnabled)
-                .font(.body)
+                .font(.system(size: 18))
             if item.followUpEnabled {
                 Stepper("Every \(item.followUpIntervalDays) days",
                         value: $item.followUpIntervalDays, in: 1...365)
-                    .font(.body)
+                    .font(.system(size: 18))
                 if item.isFollowUpOverdue {
                     Label(overdueText, systemImage: "bell.badge")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.orange)
                 }
             }
@@ -67,11 +67,11 @@ struct ContactCRMView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Interactions")
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button { interactionSheet = .add } label: {
-                    Label("Log", systemImage: "plus.circle.fill").font(.body.weight(.semibold))
+                    Label("Log", systemImage: "plus.circle.fill").font(.system(size: 17, weight: .semibold))
                 }
                 .buttonStyle(.plain)
             }
@@ -84,26 +84,26 @@ struct ContactCRMView: View {
                 }
             }
             if item.interactions.isEmpty {
-                Text("No interactions logged yet.").font(.subheadline).foregroundStyle(.secondary)
+                Text("No interactions logged yet.").font(.system(size: 16)).foregroundStyle(.secondary)
             } else {
                 Text("Tap a quick button to log now · long-press an entry to add a note or fix the date")
-                    .font(.footnote).foregroundStyle(.tertiary)
+                    .font(.system(size: 15)).foregroundStyle(.tertiary)
                 ForEach(item.interactions) { entry in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: icon(for: entry.type)).foregroundStyle(.blue)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(label(for: entry.type)).font(.body.weight(.semibold))
+                            Text(label(for: entry.type)).font(.system(size: 17, weight: .semibold))
                             if !entry.note.isEmpty {
-                                Text(entry.note).font(.body)
+                                Text(entry.note).font(.system(size: 17))
                             }
                             Text(entry.date, format: .dateTime.month(.abbreviated).day().year().hour().minute())
-                                .font(.subheadline).foregroundStyle(.secondary)
+                                .font(.system(size: 16)).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button(role: .destructive) {
                             item.interactions.removeAll { $0.id == entry.id }
-                        } label: { Image(systemName: "trash").font(.subheadline) }
+                        } label: { Image(systemName: "trash").font(.system(size: 16)) }
                         .buttonStyle(.plain)
                     }
                     // Long-press the logged entry to reopen it for a note or a
@@ -128,7 +128,7 @@ struct ContactCRMView: View {
         Button {
             item.addInteraction(Interaction(type: tag.typeKey))
         } label: {
-            Label(tag.label, systemImage: tag.iconName).font(.subheadline.weight(.medium))
+            Label(tag.label, systemImage: tag.iconName).font(.system(size: 16, weight: .medium))
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -152,39 +152,39 @@ struct ContactCRMView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Significant dates")
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button { showAddDate = true } label: {
-                    Label("Add", systemImage: "plus.circle.fill").font(.body.weight(.semibold))
+                    Label("Add", systemImage: "plus.circle.fill").font(.system(size: 17, weight: .semibold))
                 }
                 .buttonStyle(.plain)
             }
             if item.significantDates.isEmpty {
-                Text("No dates yet.").font(.subheadline).foregroundStyle(.secondary)
+                Text("No dates yet.").font(.system(size: 16)).foregroundStyle(.secondary)
             } else {
                 ForEach(item.significantDates) { d in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(d.label.isEmpty ? "Date" : d.label).font(.body.weight(.semibold))
+                            Text(d.label.isEmpty ? "Date" : d.label).font(.system(size: 17, weight: .semibold))
                             Text(d.date, format: .dateTime.month(.abbreviated).day().year())
-                                .font(.subheadline).foregroundStyle(.secondary)
-                            + Text(d.recurring ? " · yearly" : "").font(.subheadline).foregroundStyle(.secondary)
+                                .font(.system(size: 16)).foregroundStyle(.secondary)
+                            + Text(d.recurring ? " · yearly" : "").font(.system(size: 16)).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button { Task { await addDateToCalendar(d) } } label: {
-                            Image(systemName: "calendar.badge.plus").font(.body)
+                            Image(systemName: "calendar.badge.plus").font(.system(size: 19))
                         }
                         .buttonStyle(.plain)
                         Button(role: .destructive) {
                             item.significantDates.removeAll { $0.id == d.id }
-                        } label: { Image(systemName: "trash").font(.subheadline) }
+                        } label: { Image(systemName: "trash").font(.system(size: 16)) }
                         .buttonStyle(.plain)
                     }
                 }
             }
             if let dateStatus {
-                Text(dateStatus).font(.subheadline).foregroundStyle(.secondary)
+                Text(dateStatus).font(.system(size: 16)).foregroundStyle(.secondary)
             }
         }
         .sheet(isPresented: $showAddDate) {

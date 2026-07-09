@@ -306,23 +306,23 @@ struct ItemListView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
 
                 HStack(spacing: 8) {
                     if !item.imageData.isEmpty {
                         Label("\(item.imageData.count)", systemImage: "doc.fill")
-                            .font(.subheadline)
+                            .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     }
                     // Journal rows read as YYYY MMM DD HH:MM:SS by the entry's own
                     // date; other folders show the last-modified day.
                     if folder.template == .journal {
                         Text(JournalExporter.label(for: item.journalDate, title: ""))
-                            .font(.subheadline)
+                            .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     } else {
                         Text(item.dateModified, format: .dateTime.month(.abbreviated).day().year())
-                            .font(.subheadline)
+                            .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     }
                 }

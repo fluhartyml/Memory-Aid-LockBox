@@ -837,7 +837,7 @@ struct ItemDetailView: View {
     private var contactSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Contact")
-                .font(.title3.weight(.semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             Picker("Type", selection: $item.isBusinessContact) {
@@ -881,7 +881,7 @@ struct ItemDetailView: View {
                             Image(systemName: "text.viewfinder").font(.system(size: 16))
                         }
                         Text(isReadingContact ? "Reading…" : "Fill from image")
-                            .font(.body.weight(.semibold))
+                            .font(.system(size: 18, weight: .semibold))
                     }
                 }
                 .buttonStyle(.plain)
@@ -894,7 +894,7 @@ struct ItemDetailView: View {
                     shareContact()
                 } label: {
                     Label("Share Contact Card", systemImage: "square.and.arrow.up")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -903,7 +903,7 @@ struct ItemDetailView: View {
                     showAddContact = true
                 } label: {
                     Label("Add to My Contacts", systemImage: "person.crop.circle.badge.plus")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -923,7 +923,7 @@ struct ItemDetailView: View {
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Full contact card")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.secondary)
                 ForEach(rows) { row in
                     HStack(alignment: .top, spacing: 10) {
@@ -933,17 +933,17 @@ struct ItemDetailView: View {
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(row.label)
-                                .font(.footnote)
+                                .font(.system(size: 15))
                                 .foregroundStyle(.secondary)
                             Text(row.value)
-                                .font(.body)
+                                .font(.system(size: 19))
                                 .textSelection(.enabled)
                         }
                         Spacer(minLength: 0)
                     }
                 }
                 Text("Imported from Apple Contacts — every field preserved, and it exports back identically.")
-                    .font(.footnote)
+                    .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .padding(.top, 2)
             }
@@ -963,7 +963,7 @@ struct ItemDetailView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
             TextField(label, text: text)
-                .font(.title3)
+                .font(.system(size: 20))
                 .textFieldStyle(.plain)
                 #if os(iOS)
                 .textContentType(contentType(for: label))
