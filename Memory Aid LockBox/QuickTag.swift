@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import SwiftData
 
 struct QuickTag: Codable, Identifiable, Hashable {
     var id = UUID()
@@ -36,10 +37,27 @@ struct QuickTag: Codable, Identifiable, Hashable {
     }
 }
 
-/// Load/save helpers for the app-wide quick-tag set. Keeping the raw string in
-/// @AppStorage (like FieldConfig's JSON columns) and decoding on read.
+/// Load/save helpers for the app-wide quick-tag set. The tags now live on the
+/// CloudKit-synced `VaultMetadata` marker (see VaultMetadata.quickTagsJSON); this
+/// enum stays the JSON codec and hosts the one-time migration off the old
+/// @AppStorage key.
 enum QuickTagStore {
+    /// Legacy @AppStorage/UserDefaults key. Kept only so tags a user set before
+    /// this version can be carried onto the synced marker once.
     static let key = "quickTagsJSON"
+
+    /// One-time move of any pre-existing local tags (UserDefaults) onto the
+    /// CloudKit-synced marker. No-op once the marker carries tags, so it's safe
+    /// to call on every launch. Called after seeding, so the marker exists.
+    @MainActor
+    static func migrateFromAppStorageIfNeeded(container: ModelContainer) {
+        let context = container.mainContext
+        let marker = VaultMetadata.canonical(in: context)
+        guard marker.quickTagsJSON.isEmpty else { return }          // already synced
+        let legacy = UserDefaults.standard.string(forKey: key) ?? ""
+        guard !legacy.isEmpty else { return }                       // nothing to carry over
+        marker.quickTagsJSON = legacy
+    }
 
     static func load(_ json: String) -> [QuickTag] {
         guard !json.isEmpty,

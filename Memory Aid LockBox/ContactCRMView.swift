@@ -9,17 +9,19 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContactCRMView: View {
     @Bindable var item: VaultItem
 
-    @AppStorage(QuickTagStore.key) private var tagsJSON = ""
+    @Query private var vaultMeta: [VaultMetadata]
     @State private var interactionSheet: InteractionSheetMode?
     @State private var showAddDate = false
     @State private var dateStatus: String?
 
-    /// The app-wide quick-interaction tags (editable in Settings).
-    private var quickTags: [QuickTag] { QuickTagStore.load(tagsJSON) }
+    /// The app-wide quick-interaction tags (editable in Settings), read from the
+    /// CloudKit-synced marker so they persist across reinstall and devices.
+    private var quickTags: [QuickTag] { QuickTagStore.load(VaultMetadata.quickTagsJSON(from: vaultMeta)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -223,7 +225,7 @@ private struct InteractionSheet: View {
     let title: String
     let action: String
     let onSave: (Interaction) -> Void
-    @AppStorage(QuickTagStore.key) private var tagsJSON = ""
+    @Query private var vaultMeta: [VaultMetadata]
     @Environment(\.dismiss) private var dismiss
     @State private var entry: Interaction
 
@@ -240,7 +242,7 @@ private struct InteractionSheet: View {
     /// Type choices = the user's quick tags, plus "Other", plus the entry's
     /// current type if its tag was removed (so it stays selectable when editing).
     private var typeOptions: [(key: String, label: String)] {
-        var opts = QuickTagStore.load(tagsJSON).map { (key: $0.typeKey, label: $0.label) }
+        var opts = QuickTagStore.load(VaultMetadata.quickTagsJSON(from: vaultMeta)).map { (key: $0.typeKey, label: $0.label) }
         if !opts.contains(where: { $0.key == "other" }) {
             opts.append((key: "other", label: "Other"))
         }

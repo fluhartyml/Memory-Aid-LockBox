@@ -9,9 +9,11 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct QuickTagsEditorView: View {
-    @AppStorage(QuickTagStore.key) private var tagsJSON = ""
+    @Environment(\.modelContext) private var modelContext
+    @Query private var vaultMeta: [VaultMetadata]
     @State private var tags: [QuickTag] = []
     @State private var editing: QuickTag?      // new (fresh id) = add · existing = edit
 
@@ -58,7 +60,7 @@ struct QuickTagsEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }
         #endif
-        .onAppear { tags = QuickTagStore.load(tagsJSON) }
+        .onAppear { tags = QuickTagStore.load(VaultMetadata.canonical(in: modelContext).quickTagsJSON) }
         .sheet(item: $editing) { tag in
             QuickTagEditSheet(tag: tag) { saved in
                 if let i = tags.firstIndex(where: { $0.id == saved.id }) {
@@ -71,7 +73,9 @@ struct QuickTagsEditorView: View {
         }
     }
 
-    private func persist() { tagsJSON = QuickTagStore.encode(tags) }
+    private func persist() {
+        VaultMetadata.canonical(in: modelContext).quickTagsJSON = QuickTagStore.encode(tags)
+    }
 }
 
 // MARK: - Add / edit a single tag

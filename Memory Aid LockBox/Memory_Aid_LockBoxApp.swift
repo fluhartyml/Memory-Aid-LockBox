@@ -70,6 +70,10 @@ struct Memory_Aid_LockBoxApp: App {
                         container: sharedModelContainer,
                         cloudKitAvailable: cloudKitAvailable
                     )
+                    // Carry any tags a user set before this version (stored
+                    // locally in UserDefaults) onto the CloudKit-synced marker
+                    // once. Runs after seeding so the marker exists.
+                    QuickTagStore.migrateFromAppStorageIfNeeded(container: sharedModelContainer)
                 }
         }
         .modelContainer(sharedModelContainer)
