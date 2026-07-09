@@ -24,12 +24,12 @@ struct QuickTagsEditorView: View {
                     Button { editing = tag } label: {
                         HStack(spacing: 12) {
                             Image(systemName: tag.iconName)
-                                .font(.system(size: 17)).foregroundStyle(.blue)
+                                .font(.system(size: 19)).foregroundStyle(.blue)
                                 .frame(width: 26)
-                            Text(tag.label).foregroundStyle(.primary)
+                            Text(tag.label).font(.system(size: 19)).foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 13)).foregroundStyle(.tertiary)
+                                .font(.system(size: 16)).foregroundStyle(.tertiary)
                         }
                     }
                     .buttonStyle(.plain)
@@ -114,7 +114,7 @@ private struct QuickTagEditSheet: View {
                     LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(icons, id: \.self) { name in
                             Image(systemName: name)
-                                .font(.system(size: 20))
+                                .font(.system(size: 22))
                                 .frame(width: 46, height: 46)
                                 .foregroundStyle(tag.iconName == name ? Color.white : Color.primary)
                                 .background(tag.iconName == name ? Color.blue : Color.gray.opacity(0.15))
