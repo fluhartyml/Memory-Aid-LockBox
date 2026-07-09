@@ -80,25 +80,6 @@ struct ConfigureFieldsView: View {
                     Text("Add your own named fields to every item in this folder.")
                         .font(.system(size: 13))
                 }
-
-                // Contacts only: the interaction Quick tags are also reachable
-                // here (not only in Settings → Contacts), since this is where you
-                // configure a contact folder. Same editor, one shared tag set.
-                if folder.template == .contacts {
-                    Section {
-                        NavigationLink {
-                            QuickTagsEditorView()
-                        } label: {
-                            Label("Quick tags", systemImage: "tag")
-                                .font(.system(size: 17))
-                        }
-                    } header: {
-                        Text("Interaction tags").font(.system(size: 16))
-                    } footer: {
-                        Text("The one-tap buttons in a contact's Interactions log. App-wide — the same set every contact uses.")
-                            .font(.system(size: 13))
-                    }
-                }
             }
             #if os(macOS)
             .formStyle(.grouped)

@@ -23,6 +23,7 @@ struct ItemListView: View {
     @State private var showAddAppt = false
     @State private var showAddReceipt = false
     @State private var showConfigureFields = false
+    @State private var showQuickTags = false
     @State private var exportFile: ExportFile?
 
     private struct ExportFile: Identifiable {
@@ -87,6 +88,13 @@ struct ItemListView: View {
                         Button { showConfigureFields = true } label: {
                             Label("Configure Fields", systemImage: "slider.horizontal.3")
                         }
+                        // Contacts only: the app-wide interaction Quick tags, a peer
+                        // of Configure Fields (they're interaction config, not a field).
+                        if folder.template == .contacts {
+                            Button { showQuickTags = true } label: {
+                                Label("Quick tags", systemImage: "tag")
+                            }
+                        }
                         if folder.template == .journal {
                             Divider()
                             Button { exportJournal(asPDF: false) } label: {
@@ -113,6 +121,16 @@ struct ItemListView: View {
         }
         .sheet(isPresented: $showConfigureFields) {
             ConfigureFieldsView(folder: folder)
+        }
+        .sheet(isPresented: $showQuickTags) {
+            NavigationStack {
+                QuickTagsEditorView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showQuickTags = false }
+                        }
+                    }
+            }
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $showAddItem) {
