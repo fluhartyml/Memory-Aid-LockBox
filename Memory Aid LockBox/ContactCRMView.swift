@@ -15,6 +15,7 @@ struct ContactCRMView: View {
     @Bindable var item: VaultItem
 
     @Query private var vaultMeta: [VaultMetadata]
+    @Environment(\.modelContext) private var modelContext
     @State private var interactionSheet: InteractionSheetMode?
     @State private var showAddDate = false
     @State private var dateStatus: String?
@@ -119,8 +120,21 @@ struct ContactCRMView: View {
                 InteractionSheet(title: "Log Interaction", action: "Add") { item.addInteraction($0) }
             case .edit(let entry):
                 InteractionSheet(initial: entry, title: "Edit Interaction", action: "Save") { item.updateInteraction($0) }
+            case .editTag(let tag):
+                QuickTagEditSheet(tag: tag) { saved in updateTag(saved) }
             }
         }
+    }
+
+    /// Persist an edited quick tag to the CloudKit-synced marker. Matched by id,
+    /// so the tag's `typeKey` is preserved and already-logged interactions stay
+    /// linked even after a rename/re-icon.
+    private func updateTag(_ tag: QuickTag) {
+        let marker = VaultMetadata.canonical(in: modelContext)
+        var tags = QuickTagStore.load(marker.quickTagsJSON)
+        guard let i = tags.firstIndex(where: { $0.id == tag.id }) else { return }
+        tags[i] = tag
+        marker.quickTagsJSON = QuickTagStore.encode(tags)
     }
 
     /// A single one-tap quick-log button (logs the tag's type at the current moment).
@@ -132,6 +146,13 @@ struct ContactCRMView: View {
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
+        // Long-press (right-click on Mac) a quick tag to edit its name/icon —
+        // routed through the single interaction-sheet channel, not a second sheet.
+        .contextMenu {
+            Button { interactionSheet = .editTag(tag) } label: {
+                Label("Edit Tag…", systemImage: "pencil")
+            }
+        }
     }
 
     /// Icon for a logged interaction — the matching quick tag's icon, else a
@@ -209,11 +230,13 @@ struct ContactCRMView: View {
 enum InteractionSheetMode: Identifiable {
     case add
     case edit(Interaction)
+    case editTag(QuickTag)
 
     var id: String {
         switch self {
         case .add: return "add"
         case .edit(let entry): return entry.id.uuidString
+        case .editTag(let tag): return "tag-" + tag.id.uuidString
         }
     }
 }

@@ -96,7 +96,7 @@ struct QuickTagEditSheet: View {
         "message", "envelope", "video", "person.2", "hand.wave", "bubble.left.and.bubble.right",
         "calendar", "gift", "cup.and.saucer", "fork.knife", "car", "figure.walk",
         "mappin.and.ellipse", "briefcase", "checkmark.circle", "star", "heart", "bell",
-        "doc.text", "creditcard", "cart", "dollarsign.circle", "camera", "paperplane",
+        "doc.text", "creditcard", "cart", "dollarsign.circle", "banknote", "camera", "paperplane",
     ]
     private let columns = [GridItem(.adaptive(minimum: 46), spacing: 10)]
 
