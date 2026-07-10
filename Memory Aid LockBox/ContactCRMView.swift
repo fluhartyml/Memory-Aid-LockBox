@@ -137,6 +137,16 @@ struct ContactCRMView: View {
         marker.quickTagsJSON = QuickTagStore.encode(tags)
     }
 
+    /// Remove a quick tag from the CloudKit-synced marker. Already-logged
+    /// interactions of this type stay in the log; they just fall back to the
+    /// raw type name + generic dot (see `label(for:)` / `icon(for:)`).
+    private func deleteTag(_ tag: QuickTag) {
+        let marker = VaultMetadata.canonical(in: modelContext)
+        var tags = QuickTagStore.load(marker.quickTagsJSON)
+        tags.removeAll { $0.id == tag.id }
+        marker.quickTagsJSON = QuickTagStore.encode(tags)
+    }
+
     /// A single one-tap quick-log button (logs the tag's type at the current moment).
     private func quickLogButton(_ tag: QuickTag) -> some View {
         Button {
@@ -151,6 +161,11 @@ struct ContactCRMView: View {
         .contextMenu {
             Button { interactionSheet = .editTag(tag) } label: {
                 Label("Edit Tag…", systemImage: "pencil")
+            }
+            // No confirmation dialog — the long-press to reach this menu is
+            // friction enough (Michael, 2026-07-10).
+            Button(role: .destructive) { deleteTag(tag) } label: {
+                Label("Delete Tag", systemImage: "trash")
             }
         }
     }
