@@ -131,6 +131,14 @@ struct PhotoJournalView: View {
                     row(asset)
                         .contentShape(Rectangle())
                         .onTapGesture { viewerAsset = asset }
+                        // Long-press to remove the reference only — the photo is
+                        // preserved in the master vault. No confirm (long-press is
+                        // the friction). See feedback_long_press_delete_over_swipe.
+                        .contextMenu {
+                            Button(role: .destructive) { removeReference(asset.id) } label: {
+                                Label("Remove from Journal", systemImage: "minus.circle")
+                            }
+                        }
                 }
             }
             #if os(macOS)
@@ -184,6 +192,13 @@ struct PhotoJournalView: View {
             statusMessage = "\(summary.failures) item\(summary.failures == 1 ? "" : "s") couldn't be read and were skipped."
             showStatus = true
         }
+    }
+
+    /// Remove a photo's reference from this journal. The MediaAsset stays in the
+    /// master vault (and any other journals) — only this journal's link is cut.
+    private func removeReference(_ id: UUID) {
+        folder.journalAssetIDs = folder.journalAssetIDs.filter { $0 != id }
+        try? modelContext.save()
     }
 
     /// Reference existing master photos into this journal (no bytes copied),
