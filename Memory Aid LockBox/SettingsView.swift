@@ -11,6 +11,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("autoLockMinutes") private var autoLockMinutes = 5
+    @Environment(VaultLock.self) private var vaultLock
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -48,6 +49,12 @@ struct SettingsView: View {
                 } footer: {
                     Text("Customize the one-tap buttons (Called, Texted, Emailed, Met…) in a contact's Interactions log — add your own, change icons, or reorder.")
                 }
+            }
+            // Apply the new timeout to any countdown already running, so lowering
+            // it (e.g. to "Never") cancels the stale timer instead of letting the
+            // old duration fire later. No-op while the vault is locked.
+            .onChange(of: autoLockMinutes) { _, newValue in
+                vaultLock.reschedule(forMinutes: newValue)
             }
             .navigationTitle("Settings")
             #if os(iOS)
