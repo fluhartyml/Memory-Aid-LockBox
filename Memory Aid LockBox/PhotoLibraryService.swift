@@ -48,6 +48,9 @@ struct MediaImportSummary {
     /// Apple Photos local identifiers of items that were saved into the vault
     /// and are therefore safe to delete from Photos (the "move").
     var identifiersToRemove: [String] = []
+    /// Ids of the MediaAssets created this import, in order — so a caller (e.g. a
+    /// Photo Journal importing into the master folder) can reference them.
+    var createdAssetIDs: [UUID] = []
 }
 
 @MainActor
@@ -62,6 +65,7 @@ struct MediaImporter {
             if let asset = await makeAsset(from: item) {
                 modelContext.insert(asset)
                 summary.imported += 1
+                summary.createdAssetIDs.append(asset.id)
                 if let identifier = item.itemIdentifier {
                     summary.identifiersToRemove.append(identifier)
                 }

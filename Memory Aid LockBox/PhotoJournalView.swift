@@ -16,12 +16,27 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct PhotoJournalView: View {
     let folder: Folder
+    @Environment(\.modelContext) private var modelContext
     @Query private var allAssets: [MediaAsset]
+    @Query private var folders: [Folder]
 
     @State private var viewerAsset: MediaAsset?
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var showPicker = false
+    @State private var isImporting = false
+    @State private var statusMessage: String?
+    @State private var showStatus = false
+    #if os(iOS)
+    @State private var showCamera = false
+    #endif
+
+    /// The one master Photos folder — it owns the bytes; the journal only
+    /// references. Capture/import here store into this folder.
+    private var master: Folder? { folders.first { $0.template == .photos } }
 
     /// The journal's referenced photos, resolved from the master library and
     /// kept in the journal's stored order. References whose photo no longer
@@ -34,11 +49,56 @@ struct PhotoJournalView: View {
     var body: some View {
         content
             .resizingNavigationTitle(folder.name)
+            .toolbar { toolbarContent }
+            .photosPicker(isPresented: $showPicker,
+                          selection: $pickerItems,
+                          matching: .any(of: [.images, .videos]))
+            .onChange(of: pickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                Task { await runImport(items) }
+            }
+            .overlay { if isImporting { busyOverlay } }
+            .alert("Memory Aid LockBox", isPresented: $showStatus) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(statusMessage ?? "")
+            }
             #if os(iOS)
             .fullScreenCover(item: $viewerAsset) { MediaViewerView(asset: $0) }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraCaptureView { data in addCapturedPhoto(data) }
+            }
             #else
             .sheet(item: $viewerAsset) { MediaViewerView(asset: $0).frame(minWidth: 600, minHeight: 600) }
             #endif
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                #if os(iOS)
+                Button { showCamera = true } label: {
+                    Label("Take Picture", systemImage: "camera")
+                }
+                #endif
+                Button { showPicker = true } label: {
+                    Label("Import from Camera Roll", systemImage: "photo.on.rectangle")
+                }
+            } label: {
+                Label("Add Photo", systemImage: "plus")
+            }
+            .disabled(master == nil)
+        }
+    }
+
+    private var busyOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.3).ignoresSafeArea()
+            ProgressView("Importing…")
+                .padding(24)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        }
     }
 
     @ViewBuilder
@@ -90,4 +150,41 @@ struct PhotoJournalView: View {
         }
         .padding(.vertical, 4)
     }
+
+    // MARK: - Add flows (photos are owned by master, referenced here)
+
+    /// Import from the camera roll into the master folder, then reference the new
+    /// photos in this journal (copy — Apple Photos originals are left in place).
+    private func runImport(_ items: [PhotosPickerItem]) async {
+        guard let master else { pickerItems = []; return }
+        isImporting = true
+        let importer = MediaImporter(modelContext: modelContext, folder: master)
+        let summary = await importer.importItems(items)
+        if !summary.createdAssetIDs.isEmpty {
+            var refs = folder.journalAssetIDs
+            refs.append(contentsOf: summary.createdAssetIDs)
+            folder.journalAssetIDs = refs
+            try? modelContext.save()
+        }
+        pickerItems = []
+        isImporting = false
+        if summary.failures > 0 {
+            statusMessage = "\(summary.failures) item\(summary.failures == 1 ? "" : "s") couldn't be read and were skipped."
+            showStatus = true
+        }
+    }
+
+    #if os(iOS)
+    /// Store a freshly captured photo in the master folder and reference it here.
+    private func addCapturedPhoto(_ data: Data) {
+        guard let master else { return }
+        let thumb = MediaThumbnailer.photoThumbnail(from: data)
+        let asset = MediaAsset(type: .photo, data: data, thumbnailData: thumb, folder: master)
+        modelContext.insert(asset)
+        var refs = folder.journalAssetIDs
+        refs.append(asset.id)
+        folder.journalAssetIDs = refs
+        try? modelContext.save()
+    }
+    #endif
 }
