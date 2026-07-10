@@ -18,6 +18,7 @@ import UIKit
 struct MediaLibraryView: View {
     let folder: Folder
     @Environment(\.modelContext) private var modelContext
+    @Query private var folders: [Folder]
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPicker = false
@@ -39,7 +40,16 @@ struct MediaLibraryView: View {
     @State private var statusMessage: String?
     @State private var showStatus = false
 
+    // "Add to Photo Journal" push flow.
+    @State private var showNewJournal = false
+    @State private var newJournalName = ""
+    @State private var pendingJournalIDs: [UUID] = []
+
     private let columns = [GridItem(.adaptive(minimum: 100, maximum: 160), spacing: 4)]
+
+    private var photoJournals: [Folder] {
+        folders.filter { $0.template == .photoJournal }.sorted { $0.name < $1.name }
+    }
 
     private var assets: [MediaAsset] {
         (folder.mediaAssets ?? []).sorted { $0.dateImported > $1.dateImported }
@@ -92,6 +102,13 @@ struct MediaLibraryView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(statusMessage ?? "")
+            }
+            .alert("New Photo Journal", isPresented: $showNewJournal) {
+                TextField("Name", text: $newJournalName)
+                Button("Create") { createJournalAndAdd() }
+                Button("Cancel", role: .cancel) { pendingJournalIDs = []; newJournalName = "" }
+            } message: {
+                Text("Name this photo journal. The selected photo\(pendingJournalIDs.count == 1 ? "" : "s") will be added to it.")
             }
             #if os(iOS)
             .fullScreenCover(item: $viewerAsset) { MediaViewerView(asset: $0) }
@@ -182,10 +199,32 @@ struct MediaLibraryView: View {
         Button { Task { await exportAssets([asset]) } } label: {
             Label("Export to Photos", systemImage: "square.and.arrow.up")
         }
+        addToJournalMenu(for: [asset.id])
         Button(role: .destructive) {
             modelContext.delete(asset)
         } label: {
             Label("Remove from Vault", systemImage: "trash")
+        }
+    }
+
+    /// "Add to Photo Journal" → each existing journal + "New Photo Journal…".
+    /// Adds references only; the photo stays owned by this master library.
+    @ViewBuilder
+    private func addToJournalMenu(for ids: [UUID]) -> some View {
+        Menu {
+            ForEach(photoJournals) { journal in
+                Button(journal.name) { addToJournal(ids, journal: journal) }
+            }
+            if !photoJournals.isEmpty { Divider() }
+            Button {
+                pendingJournalIDs = ids
+                newJournalName = ""
+                showNewJournal = true
+            } label: {
+                Label("New Photo Journal…", systemImage: "plus")
+            }
+        } label: {
+            Label("Add to Photo Journal", systemImage: "photo.stack")
         }
     }
 
@@ -204,6 +243,9 @@ struct MediaLibraryView: View {
                     Label("Remove", systemImage: "trash")
                 }
                 .disabled(selection.isEmpty)
+
+                addToJournalMenu(for: selectedAssets.map(\.id))
+                    .disabled(selection.isEmpty)
 
                 Button("Done") { isSelecting = false; selection.removeAll() }
             } else {
@@ -296,6 +338,33 @@ struct MediaLibraryView: View {
     private func endSelecting() {
         selection.removeAll()
         isSelecting = false
+    }
+
+    // MARK: - Add to Photo Journal (reference only; master keeps the photo)
+
+    private func addToJournal(_ ids: [UUID], journal: Folder) {
+        guard !ids.isEmpty else { return }
+        var refs = journal.journalAssetIDs
+        let existing = Set(refs)
+        for id in ids where !existing.contains(id) { refs.append(id) }
+        journal.journalAssetIDs = refs
+        try? modelContext.save()
+        statusMessage = "Added \(ids.count) photo\(ids.count == 1 ? "" : "s") to \(journal.name)."
+        showStatus = true
+        if isSelecting { endSelecting() }
+    }
+
+    private func createJournalAndAdd() {
+        let trimmed = newJournalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let journal = Folder(name: trimmed.isEmpty ? "Photo Journal" : trimmed,
+                             iconName: "photo.stack",
+                             sortOrder: (folders.map(\.sortOrder).max() ?? 0) + 1,
+                             template: .photoJournal)
+        modelContext.insert(journal)
+        let ids = pendingJournalIDs
+        pendingJournalIDs = []
+        newJournalName = ""
+        addToJournal(ids, journal: journal)
     }
 
     private var exportMovePromptMessage: String {
