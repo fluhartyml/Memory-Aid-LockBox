@@ -91,10 +91,10 @@ struct ContactCRMView: View {
                     .font(.system(size: 15)).foregroundStyle(.tertiary)
                 ForEach(item.interactions) { entry in
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: icon(for: entry.type)).foregroundStyle(.blue)
+                        Image(systemName: icon(for: entry)).foregroundStyle(.blue)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(label(for: entry.type)).font(.system(size: 17, weight: .semibold))
+                            Text(label(for: entry)).font(.system(size: 17, weight: .semibold))
                             if !entry.note.isEmpty {
                                 Text(entry.note).font(.system(size: 17))
                             }
@@ -126,25 +126,50 @@ struct ContactCRMView: View {
         }
     }
 
-    /// Persist an edited quick tag to the CloudKit-synced marker. Matched by id,
-    /// so the tag's `typeKey` is preserved and already-logged interactions stay
-    /// linked even after a rename/re-icon.
+    /// Persist an edited quick tag to the CloudKit-synced marker. First freezes
+    /// every past interaction of this type onto its OLD label/icon, so the
+    /// rename/re-icon doesn't rewrite history — only future logs get the new
+    /// look. `typeKey` is preserved (matched by id).
     private func updateTag(_ tag: QuickTag) {
         let marker = VaultMetadata.canonical(in: modelContext)
         var tags = QuickTagStore.load(marker.quickTagsJSON)
         guard let i = tags.firstIndex(where: { $0.id == tag.id }) else { return }
+        let old = tags[i]
+        freezePastInteractions(ofType: old.typeKey, label: old.label, iconName: old.iconName)
         tags[i] = tag
         marker.quickTagsJSON = QuickTagStore.encode(tags)
     }
 
-    /// Remove a quick tag from the CloudKit-synced marker. Already-logged
-    /// interactions of this type stay in the log; they just fall back to the
-    /// raw type name + generic dot (see `label(for:)` / `icon(for:)`).
+    /// Remove a quick tag from the CloudKit-synced marker. First freezes every
+    /// past interaction of this type onto the tag's current label/icon, so
+    /// deleting the tag leaves history untouched (it keeps its name + glyph
+    /// instead of degrading to the raw type + generic dot).
     private func deleteTag(_ tag: QuickTag) {
+        freezePastInteractions(ofType: tag.typeKey, label: tag.label, iconName: tag.iconName)
         let marker = VaultMetadata.canonical(in: modelContext)
         var tags = QuickTagStore.load(marker.quickTagsJSON)
         tags.removeAll { $0.id == tag.id }
         marker.quickTagsJSON = QuickTagStore.encode(tags)
+    }
+
+    /// Snapshot the given label/icon onto every not-yet-frozen interaction of
+    /// `typeKey`, across ALL contacts (quick tags are app-wide, so a tag edit
+    /// could otherwise change entries on any contact). Only fills entries whose
+    /// snapshot is still nil — never overwrites an existing snapshot — and only
+    /// writes contacts that actually changed. Additive display metadata only; no
+    /// deletions.
+    private func freezePastInteractions(ofType typeKey: String, label: String, iconName: String) {
+        let all = (try? modelContext.fetch(FetchDescriptor<VaultItem>())) ?? []
+        for contact in all {
+            var list = contact.interactions
+            var changed = false
+            for idx in list.indices where list[idx].type == typeKey && list[idx].label == nil {
+                list[idx].label = label
+                list[idx].iconName = iconName
+                changed = true
+            }
+            if changed { contact.interactions = list }
+        }
     }
 
     /// A single one-tap quick-log button (logs the tag's type at the current moment).
@@ -170,16 +195,17 @@ struct ContactCRMView: View {
         }
     }
 
-    /// Icon for a logged interaction — the matching quick tag's icon, else a
-    /// generic dot (e.g. a custom tag that was later removed, or "other").
-    private func icon(for type: String) -> String {
-        QuickTagStore.tag(forType: type, in: quickTags)?.iconName ?? "circle"
+    /// Icon for a logged interaction — its frozen snapshot if it has one,
+    /// otherwise the matching quick tag's icon live, else a generic dot.
+    private func icon(for entry: Interaction) -> String {
+        entry.iconName ?? QuickTagStore.tag(forType: entry.type, in: quickTags)?.iconName ?? "circle"
     }
 
-    /// Display name for a logged interaction — the matching quick tag's label,
-    /// else the raw type title-cased (graceful if the tag was removed).
-    private func label(for type: String) -> String {
-        QuickTagStore.tag(forType: type, in: quickTags)?.label ?? type.capitalized
+    /// Display name for a logged interaction — its frozen snapshot if it has
+    /// one, otherwise the matching quick tag's label live, else the raw type
+    /// title-cased (graceful if the tag was removed).
+    private func label(for entry: Interaction) -> String {
+        entry.label ?? QuickTagStore.tag(forType: entry.type, in: quickTags)?.label ?? entry.type.capitalized
     }
 
     // MARK: - 010b Significant dates

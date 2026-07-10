@@ -17,6 +17,13 @@ struct Interaction: Codable, Identifiable, Hashable {
     var date = Date()
     var type: String = "call"   // call · text · email · met · other
     var note: String = ""
+    // Frozen snapshot of the quick tag's label + icon, captured when the tag is
+    // later edited or deleted, so a logged interaction keeps how it looked at
+    // the time — editing/deleting a tag must NOT rewrite past log entries
+    // (Michael, 2026-07-10: "auto-update is fine, just not for the history").
+    // Nil until frozen; while nil the display falls back to a live tag lookup.
+    var label: String? = nil
+    var iconName: String? = nil
 
     static let types = ["call", "text", "email", "met", "other"]
 }
