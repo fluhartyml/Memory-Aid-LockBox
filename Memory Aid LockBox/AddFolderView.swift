@@ -27,7 +27,7 @@ struct AddFolderView: View {
 
     let iconOptions = [
         "folder.fill", "creditcard.fill", "lock.fill",
-        "person.crop.circle.fill", "photo.fill", "note.text",
+        "person.crop.circle.fill", "person.2.circle.fill", "photo.fill", "note.text",
         "key.fill", "wifi", "house.fill", "car.fill",
         "airplane", "doc.fill", "globe", "heart.fill",
         "star.fill", "bookmark.fill",
