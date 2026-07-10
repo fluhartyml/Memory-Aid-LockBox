@@ -241,13 +241,11 @@ private struct InteractionSheet: View {
         _entry = State(initialValue: initial)
     }
 
-    /// Type choices = the user's quick tags, plus "Other", plus the entry's
-    /// current type if its tag was removed (so it stays selectable when editing).
+    /// Type choices = the user's quick tags, plus the entry's current type if its
+    /// tag was removed (so it stays selectable when editing). No catch-all "Other" —
+    /// a new tag is created inline with the "New tag…" button.
     private var typeOptions: [(key: String, label: String)] {
         var opts = QuickTagStore.load(VaultMetadata.quickTagsJSON(from: vaultMeta)).map { (key: $0.typeKey, label: $0.label) }
-        if !opts.contains(where: { $0.key == "other" }) {
-            opts.append((key: "other", label: "Other"))
-        }
         if !entry.type.isEmpty && !opts.contains(where: { $0.key == entry.type }) {
             opts.append((key: entry.type, label: entry.type.capitalized))
         }
