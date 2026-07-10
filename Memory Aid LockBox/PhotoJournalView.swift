@@ -28,6 +28,7 @@ struct PhotoJournalView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPicker = false
     @State private var isImporting = false
+    @State private var showMasterPicker = false
     @State private var statusMessage: String?
     @State private var showStatus = false
     #if os(iOS)
@@ -58,6 +59,14 @@ struct PhotoJournalView: View {
                 Task { await runImport(items) }
             }
             .overlay { if isImporting { busyOverlay } }
+            .sheet(isPresented: $showMasterPicker) {
+                if let master {
+                    MasterPhotoPickerView(master: master,
+                                          excluding: Set(folder.journalAssetIDs)) { ids in
+                        addReferences(ids)
+                    }
+                }
+            }
             .alert("Memory Aid LockBox", isPresented: $showStatus) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -84,6 +93,9 @@ struct PhotoJournalView: View {
                 #endif
                 Button { showPicker = true } label: {
                     Label("Import from Camera Roll", systemImage: "photo.on.rectangle")
+                }
+                Button { showMasterPicker = true } label: {
+                    Label("Add from Library", systemImage: "photo.stack")
                 }
             } label: {
                 Label("Add Photo", systemImage: "plus")
@@ -172,6 +184,17 @@ struct PhotoJournalView: View {
             statusMessage = "\(summary.failures) item\(summary.failures == 1 ? "" : "s") couldn't be read and were skipped."
             showStatus = true
         }
+    }
+
+    /// Reference existing master photos into this journal (no bytes copied),
+    /// skipping any already present, preserving the picker's order.
+    private func addReferences(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        var refs = folder.journalAssetIDs
+        let existing = Set(refs)
+        for id in ids where !existing.contains(id) { refs.append(id) }
+        folder.journalAssetIDs = refs
+        try? modelContext.save()
     }
 
     #if os(iOS)
