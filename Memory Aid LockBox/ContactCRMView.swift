@@ -226,8 +226,10 @@ private struct InteractionSheet: View {
     let action: String
     let onSave: (Interaction) -> Void
     @Query private var vaultMeta: [VaultMetadata]
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var entry: Interaction
+    @State private var addingTag: QuickTag?
 
     init(initial: Interaction = Interaction(),
          title: String = "Log Interaction",
@@ -258,6 +260,9 @@ private struct InteractionSheet: View {
                 Picker("Type", selection: $entry.type) {
                     ForEach(typeOptions, id: \.key) { opt in Text(opt.label).tag(opt.key) }
                 }
+                Button { addingTag = QuickTag() } label: {
+                    Label("New tag…", systemImage: "plus.circle")
+                }
                 DatePicker("When", selection: $entry.date)
                 Section("Note") {
                     TextEditor(text: $entry.note).frame(minHeight: 100)
@@ -266,17 +271,28 @@ private struct InteractionSheet: View {
             #if os(macOS)
             .formStyle(.grouped).frame(minWidth: 420, minHeight: 420)
             #endif
-            .navigationTitle(title)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action) { onSave(entry); dismiss() }.fontWeight(.semibold)
                 }
             }
+            .sheet(item: $addingTag) { newTag in
+                QuickTagEditSheet(tag: newTag) { saved in addTag(saved) }
+            }
         }
+    }
+
+    /// Create a brand-new quick tag from this sheet and select it, so the user
+    /// doesn't have to leave and open the (…) → Quick tags editor first. Writes
+    /// to the CloudKit-synced marker (same store the editor uses).
+    private func addTag(_ tag: QuickTag) {
+        let marker = VaultMetadata.canonical(in: modelContext)
+        var tags = QuickTagStore.load(marker.quickTagsJSON)
+        tags.append(tag)
+        marker.quickTagsJSON = QuickTagStore.encode(tags)
+        entry.type = tag.typeKey
     }
 }
 

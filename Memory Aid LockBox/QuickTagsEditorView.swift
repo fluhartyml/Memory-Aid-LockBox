@@ -80,7 +80,7 @@ struct QuickTagsEditorView: View {
 
 // MARK: - Add / edit a single tag
 
-private struct QuickTagEditSheet: View {
+struct QuickTagEditSheet: View {
     let onSave: (QuickTag) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var tag: QuickTag
