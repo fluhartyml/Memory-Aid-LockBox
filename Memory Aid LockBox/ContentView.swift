@@ -158,6 +158,8 @@ struct VaultTabView: View {
                 }
             } else if folder.template == .photos {
                 MediaLibraryView(folder: folder)
+            } else if folder.template == .photoJournal {
+                PhotoJournalView(folder: folder)
             } else {
                 ItemListView(
                     folder: folder,

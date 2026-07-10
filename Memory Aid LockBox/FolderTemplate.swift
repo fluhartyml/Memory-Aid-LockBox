@@ -19,7 +19,8 @@ enum FolderTemplate: String, CaseIterable, Identifiable {
     case contacts
     case receipts
     case appointments
-    case photos         // the media library (MediaLibraryView), not an item list
+    case photos         // the master media library (MediaLibraryView), not an item list
+    case photoJournal   // a curated album: references photos owned by the master Photos folder
 
     var id: String { rawValue }
 
@@ -34,6 +35,7 @@ enum FolderTemplate: String, CaseIterable, Identifiable {
         case .receipts:      return "Receipts"
         case .appointments:  return "Appointments"
         case .photos:        return "Photos"
+        case .photoJournal:  return "Photo Journal"
         }
     }
 
@@ -48,6 +50,7 @@ enum FolderTemplate: String, CaseIterable, Identifiable {
         case .receipts:      return "doc.text.fill"
         case .appointments:  return "calendar"
         case .photos:        return "photo.fill"
+        case .photoJournal:  return "photo.stack"
         }
     }
 
@@ -55,7 +58,7 @@ enum FolderTemplate: String, CaseIterable, Identifiable {
     /// built-in media library with its own viewer, so it isn't offered here (no
     /// second media folder without that viewer).
     static var pickerChoices: [FolderTemplate] {
-        [.customNotes, .cards, .codesAccounts, .journal, .contacts, .receipts, .appointments]
+        [.customNotes, .cards, .codesAccounts, .journal, .contacts, .receipts, .appointments, .photoJournal]
     }
 
     /// Legacy folders (no stored template) infer one from their name, matching
@@ -70,6 +73,7 @@ enum FolderTemplate: String, CaseIterable, Identifiable {
         case "Contacts":         return .contacts
         case "Receipts":         return .receipts
         case "Appointments":     return .appointments
+        case "Photo Journal":    return .photoJournal
         default:                 return .customNotes
         }
     }

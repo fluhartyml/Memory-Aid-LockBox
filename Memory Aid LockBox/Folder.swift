@@ -34,12 +34,34 @@ final class Folder {
     var hiddenFieldsJSON: String = ""
     var customFieldsJSON: String = ""
 
+    /// Photo Journal reference list. A `.photoJournal` folder owns no photos —
+    /// the master Photos folder owns every `MediaAsset`; a journal only stores an
+    /// ordered list of referenced asset ids here (JSON [uuidString]). Removing a
+    /// reference or deleting the journal never deletes the photo from master.
+    /// Empty for every other template. Defaulted for CloudKit.
+    var journalAssetIDsJSON: String = ""
+
     /// The folder's template: the stored value when set, otherwise inferred from
     /// the folder name (legacy folders). New folders always store an explicit
     /// value, so the inference only ever applies to pre-template folders.
     var template: FolderTemplate {
         if let stored = FolderTemplate(rawValue: templateRaw) { return stored }
         return FolderTemplate.inferred(fromFolderName: name)
+    }
+
+    /// The Photo Journal's ordered photo references (see `journalAssetIDsJSON`).
+    /// Resolve these against the master Photos folder's assets to get the photos.
+    var journalAssetIDs: [UUID] {
+        get {
+            guard let data = journalAssetIDsJSON.data(using: .utf8),
+                  let strings = try? JSONDecoder().decode([String].self, from: data)
+            else { return [] }
+            return strings.compactMap { UUID(uuidString: $0) }
+        }
+        set {
+            journalAssetIDsJSON = (try? JSONEncoder().encode(newValue.map(\.uuidString)))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        }
     }
 
     // CloudKit mirroring requires every relationship to be optional, so these

@@ -273,6 +273,7 @@ struct ItemListView: View {
         case .appointments:  showAddAppt = true
         case .receipts:      showAddReceipt = true
         case .photos:        showPhotoPicker = true
+        case .photoJournal:  break   // routed to PhotoJournalView by ContentView; never reaches here
         case .customNotes:   showAddItem = true
         }
     }

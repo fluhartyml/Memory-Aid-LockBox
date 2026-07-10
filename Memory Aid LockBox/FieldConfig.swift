@@ -113,7 +113,7 @@ extension FolderTemplate {
                     ("receiptCardLast4", "Card last 4")]
         case .customNotes:
             return [("pin", "PIN / Code")]
-        case .journal, .photos:
+        case .journal, .photos, .photoJournal:
             return []
         }
     }
