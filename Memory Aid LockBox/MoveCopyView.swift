@@ -115,10 +115,7 @@ struct MoveCopyView: View {
             #if os(macOS)
             .frame(minWidth: 420, minHeight: 480)
             #endif
-            .navigationTitle("Move or Copy")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("Move or Copy")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

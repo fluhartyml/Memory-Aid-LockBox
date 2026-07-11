@@ -93,7 +93,7 @@ struct AddFolderView: View {
             .formStyle(.grouped)
             .frame(minWidth: 420, minHeight: 480)
             #endif
-            .navigationTitle(isEditing ? "Edit Folder" : "New Folder")
+            .resizingNavigationTitle(isEditing ? "Edit Folder" : "New Folder")
             .onAppear {
                 // Prefill from the folder being edited so its current name/icon
                 // (and template, for the hidden picker's icon suggestion) show.

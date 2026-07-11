@@ -85,9 +85,8 @@ struct ContactEditView: View {
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle(navTitle)
+                .resizingNavigationTitle(navTitle)
                 #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
                 .interactiveDismissDisabled(isSelfServe || showExitGuidedAccess)
                 #endif
                 .toolbar {

@@ -112,10 +112,7 @@ struct AppointmentEditView: View {
             .formStyle(.grouped)
             .frame(minWidth: 480, minHeight: 680)
             #endif
-            .navigationTitle("New Appointment")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("New Appointment")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.font(.system(size: 18))

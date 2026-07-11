@@ -103,7 +103,7 @@ struct CustomNotesEditView: View {
             .formStyle(.grouped)
             .frame(minWidth: 480, minHeight: 640)
             #endif
-            .navigationTitle("New Note")
+            .resizingNavigationTitle("New Note")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

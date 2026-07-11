@@ -55,9 +55,8 @@ struct QuickTagsEditorView: View {
                 }
             }
         }
-        .navigationTitle("Quick tags")
+        .resizingNavigationTitle("Quick tags")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }
         #endif
         .onAppear { tags = QuickTagStore.load(VaultMetadata.canonical(in: modelContext).quickTagsJSON) }
@@ -129,10 +128,7 @@ struct QuickTagEditSheet: View {
             #if os(macOS)
             .formStyle(.grouped).frame(minWidth: 420, minHeight: 440)
             #endif
-            .navigationTitle(tag.typeKey.isEmpty ? "Add Tag" : "Edit Tag")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle(tag.typeKey.isEmpty ? "Add Tag" : "Edit Tag")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

@@ -145,10 +145,7 @@ struct JournalEntryEditView: View {
             .formStyle(.grouped)
             .frame(minWidth: 480, minHeight: 680)
             #endif
-            .navigationTitle("New Journal Entry")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("New Journal Entry")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.font(.system(size: 18))

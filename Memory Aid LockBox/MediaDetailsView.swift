@@ -191,10 +191,7 @@ struct MediaDetailsView: View {
                 #if os(macOS)
                 .frame(minWidth: 460, minHeight: 600)
                 #endif
-                .navigationTitle("Details")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
+                .resizingNavigationTitle("Details")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }.font(.system(size: 17, weight: .semibold))

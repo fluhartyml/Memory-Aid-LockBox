@@ -56,10 +56,7 @@ struct SettingsView: View {
             .onChange(of: autoLockMinutes) { _, newValue in
                 vaultLock.reschedule(forMinutes: newValue)
             }
-            .navigationTitle("Settings")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

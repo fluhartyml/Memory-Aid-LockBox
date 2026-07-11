@@ -43,10 +43,7 @@ struct MasterPhotoPickerView: View {
                     }
                 }
             }
-            .navigationTitle("Add from Library")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("Add from Library")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

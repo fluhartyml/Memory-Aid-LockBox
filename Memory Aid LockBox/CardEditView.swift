@@ -115,10 +115,7 @@ struct CardEditView: View {
             .formStyle(.grouped)
             .frame(minWidth: 480, minHeight: 640)
             #endif
-            .navigationTitle("New Card")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("New Card")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.font(.system(size: 18))

@@ -162,10 +162,7 @@ struct ReceiptEditView: View {
             .formStyle(.grouped)
             .frame(minWidth: 480, minHeight: 700)
             #endif
-            .navigationTitle("New Receipt")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("New Receipt")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.font(.system(size: 18))

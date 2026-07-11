@@ -34,10 +34,7 @@ struct AskVaultView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Ask Your Vault")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("Ask Your Vault")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

@@ -85,10 +85,7 @@ struct ConfigureFieldsView: View {
             .formStyle(.grouped)
             .frame(minWidth: 460, minHeight: 560)
             #endif
-            .navigationTitle("Configure Fields")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("Configure Fields")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.font(.system(size: 18, weight: .semibold))

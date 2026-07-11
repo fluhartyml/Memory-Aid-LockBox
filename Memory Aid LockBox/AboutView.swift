@@ -62,10 +62,7 @@ struct AboutView: View {
                 }
                 .padding(.top, 30)
             }
-            .navigationTitle("About")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("About")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

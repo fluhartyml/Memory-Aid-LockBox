@@ -70,7 +70,7 @@ struct FeedbackView: View {
                         .font(.system(size: 16))
                 }
             }
-            .navigationTitle("Send Feedback")
+            .resizingNavigationTitle("Send Feedback")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
