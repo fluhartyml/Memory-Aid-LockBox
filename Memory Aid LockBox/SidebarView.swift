@@ -78,15 +78,23 @@ struct SidebarView: View {
                 // folder. Swipe-to-delete was removed: it was too easy to trigger
                 // by accident, and deleting a folder takes everything in it.
                 .contextMenu {
-                    Button {
-                        editingFolder = folder
-                    } label: {
-                        Label("Edit Folder", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        folderPendingDelete = folder
-                    } label: {
-                        Label("Delete Folder", systemImage: "trash")
+                    // The master photo library is the single source of truth for
+                    // every photo used anywhere in the app, so it can't be renamed
+                    // or deleted (Michael, 2026-07-11). It's also excluded from the
+                    // New Folder picker, so there's only ever one.
+                    if folder.template == .photos {
+                        Label("Master photo library — always here", systemImage: "lock.fill")
+                    } else {
+                        Button {
+                            editingFolder = folder
+                        } label: {
+                            Label("Edit Folder", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            folderPendingDelete = folder
+                        } label: {
+                            Label("Delete Folder", systemImage: "trash")
+                        }
                     }
                 }
             }
