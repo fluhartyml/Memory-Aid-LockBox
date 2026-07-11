@@ -213,14 +213,33 @@ struct RecordPagerView: View {
     // VaultItem is a SwiftData @Model, so its identity is a PersistentIdentifier
     // (not a UUID like MediaAsset) — that's what tags/selects the paged records.
     @State private var selection: PersistentIdentifier
+    @Environment(\.dismiss) private var dismiss
 
     init(items: [VaultItem], current: VaultItem) {
         self.items = items.isEmpty ? [current] : items
         _selection = State(initialValue: current.id)
     }
 
+    /// The list this pager sits over — used to label the back button.
+    private var backTitle: String { items.first?.folder?.name ?? "Back" }
+
     var body: some View {
         content
+        #if os(iOS)
+            // A paged TabView and the NavigationStack's edge-swipe-back both claim
+            // a rightward swipe, so swiping to the PREVIOUS record popped to the
+            // list instead. Hiding the system back button disables that swipe-pop,
+            // freeing right-swipe to page back; an explicit button returns to the
+            // list (mirrors how a full-screen photo pager works).
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        Label(backTitle, systemImage: "chevron.backward")
+                    }
+                }
+            }
+        #endif
         #if os(macOS)
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
