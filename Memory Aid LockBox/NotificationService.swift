@@ -67,9 +67,11 @@ enum NotificationService {
         // Detailed = only the real data the user entered (label, name, date) — no
         // computed filler like "is tomorrow" (Michael, 2026-07-11: no superfluous data).
         if UserDefaults.standard.bool(forKey: "reminderShowsDetails") {
-            let name = contactName.trimmingCharacters(in: .whitespaces).isEmpty ? "Contact" : contactName
+            // Only what the user actually typed — the label and the contact name —
+            // joined if both exist. No invented placeholder words.
+            let name = contactName.trimmingCharacters(in: .whitespaces)
             let label = d.label.trimmingCharacters(in: .whitespaces)
-            content.title = label.isEmpty ? name : "\(label) — \(name)"
+            content.title = [label, name].filter { !$0.isEmpty }.joined(separator: " — ")
             content.body = d.date.formatted(date: .abbreviated, time: .shortened)
         } else {
             content.title = "LockBox reminder"

@@ -230,7 +230,9 @@ struct ContactCRMView: View {
                 ForEach(item.significantDates) { d in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(d.label.isEmpty ? "Date" : d.label).font(.system(size: 17, weight: .semibold))
+                            if !d.label.isEmpty {
+                                Text(d.label).font(.system(size: 17, weight: .semibold))
+                            }
                             Text(d.date, format: .dateTime.month(.abbreviated).day().year().hour().minute())
                                 .font(.system(size: 16)).foregroundStyle(.secondary)
                             + Text(d.recurring ? " · yearly" : "").font(.system(size: 16)).foregroundStyle(.secondary)
@@ -298,7 +300,9 @@ struct ContactCRMView: View {
     }
 
     private func addDateToCalendar(_ d: SignificantDate) async {
-        let title = "\(d.label.isEmpty ? "Date" : d.label) — \(item.title)"
+        // Only real data — the user's label and the contact name, joined if present.
+        let title = [d.label.trimmingCharacters(in: .whitespaces), item.title]
+            .filter { !$0.isEmpty }.joined(separator: " — ")
         let ok = await EventKitService.addEvent(
             title: title, date: d.date, durationMinutes: 0,
             annualRecurring: d.recurring)
