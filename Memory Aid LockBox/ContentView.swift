@@ -210,7 +210,9 @@ struct VaultTabView: View {
 /// (Michael, 2026-07-11)
 struct RecordPagerView: View {
     let items: [VaultItem]
-    @State private var selection: UUID
+    // VaultItem is a SwiftData @Model, so its identity is a PersistentIdentifier
+    // (not a UUID like MediaAsset) — that's what tags/selects the paged records.
+    @State private var selection: PersistentIdentifier
 
     init(items: [VaultItem], current: VaultItem) {
         self.items = items.isEmpty ? [current] : items
