@@ -22,19 +22,37 @@ struct AddressMapView: View {
     /// The resolved place. We hold the whole MKMapItem (not just a coordinate) so
     /// "Directions" opens Maps on the exact geocoded result, name and all.
     @State private var resolved: MKMapItem?
+    /// True while a geocode is in flight — drives a visible "Locating…" placeholder
+    /// so the map's arrival is obvious instead of the view sitting blank (the map
+    /// used to render nothing until it resolved, which read as "no map").
+    @State private var isLocating = false
 
     var body: some View {
         Group {
             if let resolved {
                 MiniMapCard(coordinate: resolved.location.coordinate, placeName: placeName)
+            } else if isLocating {
+                locatingPlaceholder
             }
         }
         // Re-geocode when the address settles. `.task(id:)` cancels & restarts on
-        // every change; the debounce means we only hit the geocoder once typing
-        // pauses (geocoding is rate-limited).
+        // every change; the short debounce coalesces keystrokes while still
+        // resolving a stored address almost immediately on open.
         .task(id: address) {
             await lookUp(address)
         }
+    }
+
+    /// Same footprint as the resolved map, so there's no layout jump when it swaps in.
+    private var locatingPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(.quaternary)
+            .frame(height: 150)
+            .overlay {
+                Label("Locating on map…", systemImage: "mappin.and.ellipse")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
     }
 
     private func lookUp(_ text: String) async {
@@ -43,17 +61,20 @@ struct AddressMapView: View {
         // address string).
         guard trimmed.count >= 5, let request = MKGeocodingRequest(addressString: trimmed) else {
             resolved = nil
+            isLocating = false
             return
         }
-        // Debounce: wait for typing to pause; cancellation (from a newer edit or
-        // the view going away) drops out here cleanly.
-        try? await Task.sleep(for: .milliseconds(600))
+        isLocating = true
+        // Short debounce: coalesce keystrokes while editing; cancellation (from a
+        // newer edit or the view going away) drops out cleanly.
+        try? await Task.sleep(for: .milliseconds(300))
         if Task.isCancelled { return }
 
         // New MapKit geocoding (iOS/macOS 26): request.mapItems is an async getter.
         let items = try? await request.mapItems
         if Task.isCancelled { return }
         resolved = items?.first
+        isLocating = false
     }
 }
 
