@@ -35,13 +35,17 @@ struct SignificantDate: Codable, Identifiable, Hashable {
     var date = Date()           // carries time as well as day (Michael, 2026-07-11)
     var recurring: Bool = true  // birthdays/anniversaries repeat yearly
     var note: String = ""       // optional description (added 2026-07-11)
+    // Local-notification lead time, in MINUTES BEFORE the date/time. nil = no
+    // reminder; 0 = notify at the moment it arrives. Scheduled via NotificationService
+    // (added 2026-07-11 — Michael wanted per-date lead time).
+    var reminderLeadMinutes: Int? = nil
 
     init() {}
 
-    // Custom decode so dates saved before `note` existed still load: synthesized
-    // Codable throws `keyNotFound` on a missing key even when the property has a
-    // default, which would drop every pre-existing entry. decodeIfPresent tolerates it.
-    enum CodingKeys: String, CodingKey { case id, label, date, recurring, note }
+    // Custom decode so dates saved before `note`/`reminderLeadMinutes` existed still
+    // load: synthesized Codable throws `keyNotFound` on a missing key even when the
+    // property has a default, which would drop every pre-existing entry.
+    enum CodingKeys: String, CodingKey { case id, label, date, recurring, note, reminderLeadMinutes }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id        = try c.decodeIfPresent(UUID.self,   forKey: .id) ?? UUID()
@@ -49,6 +53,34 @@ struct SignificantDate: Codable, Identifiable, Hashable {
         date      = try c.decodeIfPresent(Date.self,   forKey: .date) ?? Date()
         recurring = try c.decodeIfPresent(Bool.self,   forKey: .recurring) ?? true
         note      = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+        reminderLeadMinutes = try c.decodeIfPresent(Int.self, forKey: .reminderLeadMinutes)
+    }
+
+    /// The selectable lead-time presets: (display label, minutes-before). `nil`
+    /// minutes = "Off". Shared by the picker and the row's reminder badge.
+    static let leadOptions: [(label: String, minutes: Int?)] = [
+        ("Off", nil),
+        ("At time", 0),
+        ("15 minutes before", 15),
+        ("30 minutes before", 30),
+        ("1 hour before", 60),
+        ("1 day before", 1_440),
+        ("1 week before", 10_080),
+    ]
+
+    /// Short human label for the row badge, e.g. "1 day before"; nil when off.
+    var reminderDescription: String? {
+        guard let lead = reminderLeadMinutes else { return nil }
+        switch lead {
+        case 0:       return "At time"
+        case 60:      return "1 hour before"
+        case 1_440:   return "1 day before"
+        case 10_080:  return "1 week before"
+        default:
+            if lead % 1_440 == 0 { return "\(lead / 1_440) days before" }
+            if lead % 60 == 0    { return "\(lead / 60) hours before" }
+            return "\(lead) minutes before"
+        }
     }
 }
 

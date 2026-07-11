@@ -17,7 +17,7 @@ struct ContactCRMView: View {
     @Query private var vaultMeta: [VaultMetadata]
     @Environment(\.modelContext) private var modelContext
     @State private var interactionSheet: InteractionSheetMode?
-    @State private var showAddDate = false
+    @State private var dateSheet: SignificantDateSheetMode?
     @State private var dateStatus: String?
 
     /// The app-wide quick-interaction tags (editable in Settings), read from the
@@ -217,7 +217,7 @@ struct ContactCRMView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button { showAddDate = true } label: {
+                Button { dateSheet = .add } label: {
                     Label("Add", systemImage: "plus.circle.fill").font(.system(size: 17, weight: .semibold))
                 }
                 .buttonStyle(.plain)
@@ -225,7 +225,7 @@ struct ContactCRMView: View {
             if item.significantDates.isEmpty {
                 Text("No dates yet.").font(.system(size: 16)).foregroundStyle(.secondary)
             } else {
-                Text("Long-press an entry to delete it")
+                Text("Long-press an entry to edit or delete it")
                     .font(.system(size: 15)).foregroundStyle(.tertiary)
                 ForEach(item.significantDates) { d in
                     HStack {
@@ -237,6 +237,10 @@ struct ContactCRMView: View {
                             if !d.note.isEmpty {
                                 Text(d.note).font(.system(size: 16))
                             }
+                            if let reminder = d.reminderDescription {
+                                Label(reminder, systemImage: "bell.fill")
+                                    .font(.system(size: 15)).foregroundStyle(.blue)
+                            }
                         }
                         Spacer()
                         Button { Task { await addDateToCalendar(d) } } label: {
@@ -244,13 +248,16 @@ struct ContactCRMView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    // Long-press (right-click on Mac) to delete — no trashcan, no
-                    // confirmation (Michael, 2026-07-11; matches the quick-tag delete).
+                    // Long-press (right-click on Mac) to edit or delete — no trashcan,
+                    // no delete confirmation (Michael, 2026-07-11; matches quick-tags).
                     .contentShape(Rectangle())
                     .contextMenu {
-                        Button(role: .destructive) {
-                            item.significantDates.removeAll { $0.id == d.id }
-                        } label: { Label("Delete", systemImage: "trash") }
+                        Button { dateSheet = .edit(d) } label: {
+                            Label("Edit…", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) { deleteDate(d) } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -258,9 +265,36 @@ struct ContactCRMView: View {
                 Text(dateStatus).font(.system(size: 16)).foregroundStyle(.secondary)
             }
         }
-        .sheet(isPresented: $showAddDate) {
-            AddSignificantDateSheet { var list = item.significantDates; list.append($0); item.significantDates = list }
+        .sheet(item: $dateSheet) { mode in
+            switch mode {
+            case .add:
+                SignificantDateSheet(title: "Significant Date", action: "Add") { saveDate($0) }
+            case .edit(let d):
+                SignificantDateSheet(initial: d, title: "Edit Date", action: "Save") { saveDate($0) }
+            }
         }
+    }
+
+    /// Add or update a significant date (matched by id), then (re)schedule its
+    /// local reminder. Reports the outcome in `dateStatus`.
+    private func saveDate(_ d: SignificantDate) {
+        var list = item.significantDates
+        if let idx = list.firstIndex(where: { $0.id == d.id }) { list[idx] = d } else { list.append(d) }
+        item.significantDates = list
+        Task {
+            let result = await NotificationService.schedule(for: d, contactName: item.title)
+            switch result {
+            case .scheduled: dateStatus = "Reminder set \(d.reminderDescription?.lowercased() ?? "")."
+            case .cleared:   dateStatus = nil
+            case .denied:    dateStatus = "Enable notifications for LockBox in Settings to get reminders."
+            case .past:      dateStatus = "That reminder time has already passed — no notification set."
+            }
+        }
+    }
+
+    private func deleteDate(_ d: SignificantDate) {
+        NotificationService.cancel(id: d.id)
+        item.significantDates.removeAll { $0.id == d.id }
     }
 
     private func addDateToCalendar(_ d: SignificantDate) async {
@@ -367,10 +401,35 @@ private struct InteractionSheet: View {
     }
 }
 
-private struct AddSignificantDateSheet: View {
-    let onAdd: (SignificantDate) -> Void
+/// Add or edit a significant date — one `.sheet(item:)` channel for both, so we
+/// never stack sheets on the same view. Identifiable to drive the sheet.
+enum SignificantDateSheetMode: Identifiable {
+    case add
+    case edit(SignificantDate)
+    var id: String {
+        switch self {
+        case .add: return "add"
+        case .edit(let d): return d.id.uuidString
+        }
+    }
+}
+
+private struct SignificantDateSheet: View {
+    let title: String
+    let action: String
+    let onSave: (SignificantDate) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var value = SignificantDate()
+    @State private var value: SignificantDate
+
+    init(initial: SignificantDate = SignificantDate(),
+         title: String = "Significant Date",
+         action: String = "Add",
+         onSave: @escaping (SignificantDate) -> Void) {
+        self.title = title
+        self.action = action
+        self.onSave = onSave
+        _value = State(initialValue: initial)
+    }
 
     var body: some View {
         NavigationStack {
@@ -379,18 +438,23 @@ private struct AddSignificantDateSheet: View {
                 DatePicker("Date & time", selection: $value.date,
                            displayedComponents: [.date, .hourAndMinute])
                 Toggle("Repeats yearly", isOn: $value.recurring)
+                Picker("Remind me", selection: $value.reminderLeadMinutes) {
+                    ForEach(SignificantDate.leadOptions, id: \.minutes) { opt in
+                        Text(opt.label).tag(opt.minutes)
+                    }
+                }
                 Section("Notes") {
                     TextEditor(text: $value.note).frame(minHeight: 80)
                 }
             }
             #if os(macOS)
-            .formStyle(.grouped).frame(minWidth: 420, minHeight: 380)
+            .formStyle(.grouped).frame(minWidth: 420, minHeight: 420)
             #endif
-            .resizingNavigationTitle("Significant Date")
+            .resizingNavigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { onAdd(value); dismiss() }.fontWeight(.semibold)
+                    Button(action) { onSave(value); dismiss() }.fontWeight(.semibold)
                 }
             }
         }
