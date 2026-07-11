@@ -18,10 +18,13 @@ import UIKit
 
 struct ShareSheetView: UIViewControllerRepresentable {
     let item: VaultItem
+    /// The item's photos, already resolved from the master library by the caller
+    /// (the view has the media @Query; this representable has no model context).
+    var images: [Data] = []
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         var shareItems: [Any] = [RecordShare.summary(for: item)]
-        for data in item.imageData {
+        for data in images {
             if let image = UIImage(data: data) { shareItems.append(image) }
         }
         return UIActivityViewController(activityItems: shareItems, applicationActivities: nil)

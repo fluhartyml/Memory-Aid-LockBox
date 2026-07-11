@@ -15,6 +15,8 @@ struct ItemListView: View {
     @Binding var selectedItem: VaultItem?
     @Binding var searchText: String
     @Environment(\.modelContext) private var modelContext
+    /// Master library, in memory, so row thumbnails resolve photo references.
+    @Query private var allMedia: [MediaAsset]
     @State private var showAddItem = false
     @State private var showAddContact = false
     @State private var showAddCard = false
@@ -283,7 +285,7 @@ struct ItemListView: View {
     private var journalEntries: [JournalExporter.Entry] {
         filteredItems.map {
             JournalExporter.Entry(date: $0.journalDate, title: $0.title,
-                                  body: $0.notes, images: $0.imageData)
+                                  body: $0.notes, images: $0.photoData(resolvedFrom: allMedia))
         }
     }
 
@@ -310,10 +312,11 @@ struct ItemListView: View {
 
     @ViewBuilder
     private func itemRow(_ item: VaultItem) -> some View {
+        let photos = item.photoData(resolvedFrom: allMedia)
         HStack(spacing: 12) {
             // Show first image thumbnail if available
             #if canImport(UIKit)
-            if let firstImage = item.imageData.first,
+            if let firstImage = photos.first,
                let uiImage = UIImage(data: firstImage) {
                 Image(uiImage: uiImage)
                     .resizable()
@@ -328,8 +331,8 @@ struct ItemListView: View {
                     .font(.system(size: 20, weight: .semibold))
 
                 HStack(spacing: 8) {
-                    if !item.imageData.isEmpty {
-                        Label("\(item.imageData.count)", systemImage: "doc.fill")
+                    if !photos.isEmpty {
+                        Label("\(photos.count)", systemImage: "doc.fill")
                             .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     }

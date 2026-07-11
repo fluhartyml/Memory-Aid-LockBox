@@ -40,6 +40,12 @@ final class VaultItem {
         }
     }
 
+    /// Set once this item's photos have moved to the master-library reference
+    /// model. While false, the legacy inline `imageData` is the source of truth;
+    /// once true, `assetIDs` is — even when empty — so an emptied photo list never
+    /// falls back to the retained-backup blobs. Additive/defaulted for CloudKit.
+    var usesPhotoReferences: Bool = false
+
     /// Vertical framing of the header image (the first attachment) within its
     /// banner: 0 = show the top, 0.5 = centered, 1 = show the bottom. Lets a tall
     /// portrait photo be panned so the right part lands in the banner.
@@ -167,5 +173,81 @@ final class VaultItem {
         self.dateCreated = Date()
         self.dateModified = Date()
         self.folder = folder
+    }
+}
+
+// MARK: - Photos via the master library (references, not copies)
+//
+// Every photo an item shows lives once in the master Photos folder; the item holds
+// ordered `assetIDs` referencing it. These helpers are the single way surfaces add,
+// remove, reorder, and read an item's photos, so the whole app shares one model.
+// Legacy items still carrying inline `imageData` migrate lazily the first time they
+// are edited (blobs retained, unread, as a backup until the bulk migration).
+extension VaultItem {
+    /// True when this item reads its photos from master references rather than the
+    /// legacy inline blobs.
+    var isOnPhotoReferences: Bool { usesPhotoReferences || !assetIDs.isEmpty }
+
+    /// Ordered photo bytes for display, resolved from an in-memory MediaAsset list
+    /// (pass a `@Query` of MediaAsset). References when migrated, else legacy blobs.
+    func photoData(resolvedFrom media: [MediaAsset]) -> [Data] {
+        guard isOnPhotoReferences else { return imageData }
+        let byID = Dictionary(media.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return assetIDs.compactMap { byID[$0]?.data }
+    }
+
+    /// Move any legacy inline blobs into the master library ONCE and switch this
+    /// item to references. The blobs are kept as an unread backup until the bulk
+    /// migration, but `usesPhotoReferences` means they're never displayed again.
+    func adoptPhotoReferences(in context: ModelContext) {
+        guard !usesPhotoReferences else { return }
+        if assetIDs.isEmpty, !imageData.isEmpty {
+            assetIDs = MasterPhotoLibrary.store(imageData, in: context)
+        }
+        usesPhotoReferences = true
+    }
+
+    /// Store a captured/imported photo once in master and reference it here.
+    func appendPhoto(_ data: Data, in context: ModelContext) {
+        adoptPhotoReferences(in: context)
+        assetIDs.append(MasterPhotoLibrary.store(data, in: context).id)
+        dateModified = Date()
+    }
+
+    /// Store several photos in order and reference them here.
+    func appendPhotos(_ datas: [Data], in context: ModelContext) {
+        guard !datas.isEmpty else { return }
+        adoptPhotoReferences(in: context)
+        assetIDs.append(contentsOf: MasterPhotoLibrary.store(datas, in: context))
+        dateModified = Date()
+    }
+
+    /// Drop the reference at `index` (the photo stays in the master library and any
+    /// other album). Bounds-guarded so a stale row index can never crash.
+    func removePhotoReference(at index: Int, in context: ModelContext) {
+        adoptPhotoReferences(in: context)
+        guard assetIDs.indices.contains(index) else { return }
+        assetIDs.remove(at: index)
+        dateModified = Date()
+    }
+
+    /// Move the photo at `index` to the front so it becomes the header. Bounds-guarded.
+    func makePhotoHeader(at index: Int, in context: ModelContext) {
+        adoptPhotoReferences(in: context)
+        guard assetIDs.indices.contains(index) else { return }
+        let id = assetIDs.remove(at: index)
+        assetIDs.insert(id, at: 0)
+        headerVerticalBias = 0.5
+        dateModified = Date()
+    }
+
+    /// Replace the header (front) photo with new bytes, adding it if there are none.
+    /// The previous header photo stays in the master library (delete-in-master only).
+    func setHeaderPhoto(_ data: Data, in context: ModelContext) {
+        adoptPhotoReferences(in: context)
+        let id = MasterPhotoLibrary.store(data, in: context).id
+        if assetIDs.isEmpty { assetIDs.append(id) } else { assetIDs[0] = id }
+        headerVerticalBias = 0.5
+        dateModified = Date()
     }
 }

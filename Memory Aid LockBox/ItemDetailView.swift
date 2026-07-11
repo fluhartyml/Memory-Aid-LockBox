@@ -20,6 +20,13 @@ import Contacts
 struct ItemDetailView: View {
     @Bindable var item: VaultItem
     @Environment(\.modelContext) private var modelContext
+    /// Master library, in memory, so photo references resolve without re-fetching.
+    @Query private var allMedia: [MediaAsset]
+
+    /// This item's photos as ordered bytes — resolved from the master library when
+    /// the item is on references, else its legacy inline blobs. The single read
+    /// path for every image the detail shows.
+    private var photoList: [Data] { item.photoData(resolvedFrom: allMedia) }
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var headerPhoto: PhotosPickerItem?
     @State private var showLibraryPicker = false
@@ -95,7 +102,7 @@ struct ItemDetailView: View {
                 // Header / hero image: the first attachment, shown as a banner
                 // across the top of the note. "Set as Header" on any other photo
                 // moves it here.
-                if let heroData = item.imageData.first {
+                if let heroData = photoList.first {
                     if isCardItem || isReceiptItem {
                         // A card or receipt scan must be shown whole, first thing —
                         // never cropped into a banner. Tap opens the full-screen
@@ -184,7 +191,7 @@ struct ItemDetailView: View {
         .navigationTitle("")
         #if os(iOS)
         .fullScreenCover(isPresented: $showPresentCard) {
-            PresentCardView(imageData: item.imageData.first)
+            PresentCardView(imageData: photoList.first)
         }
         #endif
         #if os(iOS)
@@ -225,7 +232,7 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             #if os(iOS)
-            ShareSheetView(item: item)
+            ShareSheetView(item: item, images: photoList)
             #endif
         }
         .sheet(isPresented: $showMoveCopy) {
@@ -238,15 +245,13 @@ struct ItemDetailView: View {
         #if os(iOS)
         .fullScreenCover(isPresented: $showCamera) {
             CameraCaptureView { data in
-                item.imageData.append(data)
-                item.dateModified = Date()
+                item.appendPhoto(data, in: modelContext)
             }
             .ignoresSafeArea()
         }
         .sheet(isPresented: $showScanner) {
             DocumentScannerView { pages in
-                item.imageData.append(contentsOf: pages)
-                item.dateModified = Date()
+                item.appendPhotos(pages, in: modelContext)
             }
         }
         #endif
@@ -316,7 +321,7 @@ struct ItemDetailView: View {
                 // attachments so the spot is viewable as a plain image. Notes and
                 // Receipts keep just the embedded coordinate / mini-map.
                 if isJournalItem, let mapImage = await LocationMapImage.snapshotData(for: coord) {
-                    item.imageData.append(mapImage)
+                    item.appendPhoto(mapImage, in: modelContext)
                 }
                 item.dateModified = Date()
             } else {
@@ -458,7 +463,7 @@ struct ItemDetailView: View {
             hideable("cardBarcode") { contactField("Barcode / QR", text: $item.cardBarcode, systemImage: "barcode") }
 
             #if os(iOS)
-            if !item.imageData.isEmpty {
+            if !photoList.isEmpty {
                 Button { showPresentCard = true } label: {
                     Label("Present to Cashier", systemImage: "barcode.viewfinder")
                         .font(.system(size: 16, weight: .semibold))
@@ -680,8 +685,8 @@ struct ItemDetailView: View {
         new.contactAddress = item.receiptAddress
 
         var logoData: Data?
-        if let src = item.imageData.first, let logo = await ReceiptLogoCropper.crop(from: src) {
-            new.imageData = [logo]
+        if let src = photoList.first, let logo = await ReceiptLogoCropper.crop(from: src) {
+            new.appendPhoto(logo, in: modelContext)
             logoData = logo
         }
 
@@ -870,7 +875,7 @@ struct ItemDetailView: View {
             #if os(iOS)
             fullContactCard
 
-            if !item.imageData.isEmpty {
+            if !photoList.isEmpty {
                 Button {
                     fillContactFromImage()
                 } label: {
@@ -1028,7 +1033,7 @@ struct ItemDetailView: View {
     /// and fill any EMPTY contact fields — never overwrites what's already there.
     /// Uses the on-device model when available, else NSDataDetector heuristics.
     private func fillContactFromImage() {
-        guard let first = item.imageData.first else { return }
+        guard let first = photoList.first else { return }
         Task {
             isReadingContact = true
             defer { isReadingContact = false }
@@ -1158,9 +1163,9 @@ struct ItemDetailView: View {
             // a stored index inside the row crashes ("index out of range") the
             // instant a page is deleted, because SwiftUI briefly re-renders the
             // disappearing row with an index the shrunken array no longer has.
-            if item.imageData.count > 1 {
+            if photoList.count > 1 {
                 VStack(spacing: 12) {
-                    ForEach(Array(item.imageData.enumerated().dropFirst()), id: \.offset) { offset, data in
+                    ForEach(Array(photoList.enumerated().dropFirst()), id: \.offset) { offset, data in
                         photoThumbnail(data: data, at: offset)
                     }
                 }
@@ -1211,11 +1216,8 @@ struct ItemDetailView: View {
             Label("Replace Header Image", systemImage: "photo")
         }
         Button(role: .destructive) {
-            if !item.imageData.isEmpty {
-                item.imageData.removeFirst()
-                item.headerVerticalBias = 0.5   // next image (if any) starts centered
-                item.dateModified = Date()
-            }
+            item.removePhotoReference(at: 0, in: modelContext)
+            item.headerVerticalBias = 0.5   // next image (if any) starts centered
         } label: {
             Label("Remove Header Image", systemImage: "trash")
         }
@@ -1284,18 +1286,12 @@ struct ItemDetailView: View {
     /// than a bare `remove(at:)`) is what makes deleting a page safe even if the
     /// row's captured index is momentarily out of step with the array.
     private func deleteAttachment(at index: Int) {
-        guard item.imageData.indices.contains(index) else { return }
-        item.imageData.remove(at: index)
-        item.dateModified = Date()
+        item.removePhotoReference(at: index, in: modelContext)
     }
 
     /// Move the attachment at `index` to the front so it becomes the header image.
     private func setAsHeader(_ index: Int) {
-        guard item.imageData.indices.contains(index) else { return }
-        let img = item.imageData.remove(at: index)
-        item.imageData.insert(img, at: 0)
-        item.headerVerticalBias = 0.5   // new header starts centered
-        item.dateModified = Date()
+        item.makePhotoHeader(at: index, in: modelContext)
     }
 
     /// Load a picked photo and either replace the header (index 0) or add it to
@@ -1316,16 +1312,10 @@ struct ItemDetailView: View {
         }
         guard let data else { return }
         if asHeader {
-            if item.imageData.isEmpty {
-                item.imageData.append(data)
-            } else {
-                item.imageData[0] = data
-            }
-            item.headerVerticalBias = 0.5   // new header starts centered
+            item.setHeaderPhoto(data, in: modelContext)
         } else {
-            item.imageData.append(data)
+            item.appendPhoto(data, in: modelContext)
         }
-        item.dateModified = Date()
     }
 
     private func copyPINToClipboard() {
