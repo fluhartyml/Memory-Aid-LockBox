@@ -121,6 +121,15 @@ struct ItemDetailView: View {
                     }
                 }
 
+                // For a card, keep the other side(s) directly under the front —
+                // a card's back belongs with its front, not down in Attachments.
+                // Each keeps its own menu (Set as Header / Delete Page).
+                if isCardItem && photoList.count > 1 {
+                    ForEach(Array(photoList.enumerated().dropFirst()), id: \.offset) { offset, data in
+                        photoThumbnail(data: data, at: offset)
+                    }
+                }
+
                 // Title
                 TextField("Title", text: $item.title)
                     .font(.system(size: 24, weight: .bold))
@@ -1163,7 +1172,10 @@ struct ItemDetailView: View {
             // a stored index inside the row crashes ("index out of range") the
             // instant a page is deleted, because SwiftUI briefly re-renders the
             // disappearing row with an index the shrunken array no longer has.
-            if photoList.count > 1 {
+            // Cards show their other side(s) directly under the front (above),
+            // so the Attachments list here would only duplicate them — skip it
+            // for cards and keep just the add buttons.
+            if photoList.count > 1 && !isCardItem {
                 VStack(spacing: 12) {
                     ForEach(Array(photoList.enumerated().dropFirst()), id: \.offset) { offset, data in
                         photoThumbnail(data: data, at: offset)
