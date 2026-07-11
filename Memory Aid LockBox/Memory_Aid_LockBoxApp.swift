@@ -74,6 +74,10 @@ struct Memory_Aid_LockBoxApp: App {
                     // locally in UserDefaults) onto the CloudKit-synced marker
                     // once. Runs after seeding so the marker exists.
                     QuickTagStore.migrateFromAppStorageIfNeeded(container: sharedModelContainer)
+                    // One-time: pull pre-refactor inline photos into the master
+                    // library. No-op (then flagged forever) for new installs.
+                    // Non-destructive — originals are kept as backup.
+                    PhotoMigration.runIfNeeded(container: sharedModelContainer)
                 }
         }
         .modelContainer(sharedModelContainer)
