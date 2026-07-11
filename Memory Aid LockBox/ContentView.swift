@@ -55,9 +55,13 @@ struct VaultTabView: View {
             NavigationStack {
                 folderContent
                     // Selecting an item in ItemListView sets selectedItem, which
-                    // pushes its detail here. Popping clears the binding.
+                    // pushes its detail here. Popping clears the binding. The
+                    // detail is a pager so you can swipe left/right (iOS) or use
+                    // prev/next (macOS) between the folder's records without
+                    // popping back to the list. Siblings are snapshotted in the
+                    // list's own order at push time.
                     .navigationDestination(item: $selectedItem) { item in
-                        ItemDetailView(item: item)
+                        RecordPagerView(items: orderedSiblings(of: item), current: item)
                     }
                     .searchable(text: $searchText, prompt: "Search vault")
                     .toolbar {
@@ -184,4 +188,76 @@ struct VaultTabView: View {
         }
     }
 
+    /// The item's folder-mates in the SAME order ItemListView shows them (journal
+    /// = newest journalDate first, everything else = newest dateModified first),
+    /// so paging follows the list you were just looking at. Snapshotted at push
+    /// time. Search filtering isn't applied here — paging walks the whole folder.
+    private func orderedSiblings(of item: VaultItem) -> [VaultItem] {
+        let source = item.folder?.items ?? []
+        let sorted = (item.folder?.template == .journal)
+            ? source.sorted { $0.journalDate > $1.journalDate }
+            : source.sorted { $0.dateModified > $1.dateModified }
+        return sorted
+    }
+}
+
+// MARK: - Record pager (swipe between records)
+
+/// Pages through a folder's records — swipe left/right on iOS, prev/next arrows
+/// on macOS — starting at the tapped record. Pushed into the detail
+/// NavigationStack, so each ItemDetailView supplies its own title and toolbar;
+/// this only adds the paging (and the macOS arrows). Mirrors MediaPagerView.
+/// (Michael, 2026-07-11)
+struct RecordPagerView: View {
+    let items: [VaultItem]
+    @State private var selection: UUID
+
+    init(items: [VaultItem], current: VaultItem) {
+        self.items = items.isEmpty ? [current] : items
+        _selection = State(initialValue: current.id)
+    }
+
+    var body: some View {
+        content
+        #if os(macOS)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigation) {
+                    Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                        .disabled(!canStep(-1))
+                    Button { step(1) } label: { Image(systemName: "chevron.right") }
+                        .disabled(!canStep(1))
+                }
+            }
+        #endif
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        #if os(iOS)
+        TabView(selection: $selection) {
+            ForEach(items) { item in
+                ItemDetailView(item: item).tag(item.id)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        #else
+        if let item = items.first(where: { $0.id == selection }) {
+            ItemDetailView(item: item)
+        } else {
+            ContentUnavailableView("Record Unavailable", systemImage: "doc")
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    private var currentIndex: Int? { items.firstIndex { $0.id == selection } }
+    private func canStep(_ d: Int) -> Bool {
+        guard let i = currentIndex else { return false }
+        return items.indices.contains(i + d)
+    }
+    private func step(_ d: Int) {
+        guard let i = currentIndex, items.indices.contains(i + d) else { return }
+        selection = items[i + d].id
+    }
+    #endif
 }
