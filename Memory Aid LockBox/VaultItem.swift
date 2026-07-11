@@ -20,6 +20,26 @@ final class VaultItem {
     @Attribute(.externalStorage)
     var imageData: [Data] = []
 
+    /// Ordered references to photos owned by the MASTER Photos library (roadmap
+    /// 2026-07-11: every photo used anywhere in LockBox is stored once in the
+    /// master Photos folder; items hold references, not their own bytes). JSON
+    /// [uuidString], CloudKit-safe, mirrors `Folder.journalAssetIDs`. `imageData`
+    /// above is kept as a fallback for items not yet migrated to references.
+    var assetIDsJSON: String = ""
+
+    var assetIDs: [UUID] {
+        get {
+            guard let data = assetIDsJSON.data(using: .utf8),
+                  let arr = try? JSONDecoder().decode([String].self, from: data)
+            else { return [] }
+            return arr.compactMap(UUID.init)
+        }
+        set {
+            assetIDsJSON = (try? JSONEncoder().encode(newValue.map(\.uuidString)))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        }
+    }
+
     /// Vertical framing of the header image (the first attachment) within its
     /// banner: 0 = show the top, 0.5 = centered, 1 = show the bottom. Lets a tall
     /// portrait photo be panned so the right part lands in the banner.
