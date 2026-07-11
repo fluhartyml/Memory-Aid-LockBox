@@ -252,7 +252,7 @@ struct CodesAccountsEditView: View {
         item.codeUsername = username
         item.codePassword = password
         item.codeWebsite = website
-        item.imageData = attachedImages
+        item.appendPhotos(attachedImages, in: modelContext)
         modelContext.insert(item)
         dismiss()
     }

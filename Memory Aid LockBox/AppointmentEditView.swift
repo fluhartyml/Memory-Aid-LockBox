@@ -289,7 +289,7 @@ struct AppointmentEditView: View {
         item.apptPrep = prep
         item.apptAddress = address
         item.apptPhone = phone
-        item.imageData = attachedImages
+        item.appendPhotos(attachedImages, in: modelContext)
         modelContext.insert(item)
         dismiss()
     }

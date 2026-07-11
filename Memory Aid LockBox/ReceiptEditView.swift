@@ -433,7 +433,7 @@ struct ReceiptEditView: View {
         item.receiptTotal = total
         item.receiptPaymentType = paymentType
         item.receiptCardLast4 = cardLast4
-        item.imageData = attachedImages
+        item.appendPhotos(attachedImages, in: modelContext)
         item.locationLatitude = taggedLat
         item.locationLongitude = taggedLon
         modelContext.insert(item)

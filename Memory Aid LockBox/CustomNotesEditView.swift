@@ -301,7 +301,7 @@ struct CustomNotesEditView: View {
             pin: pin,
             folder: folder
         )
-        newItem.imageData = attachedImages
+        newItem.appendPhotos(attachedImages, in: modelContext)
         newItem.locationLatitude = taggedLat
         newItem.locationLongitude = taggedLon
         modelContext.insert(newItem)

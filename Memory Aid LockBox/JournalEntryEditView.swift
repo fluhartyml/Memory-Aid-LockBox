@@ -237,10 +237,10 @@ struct JournalEntryEditView: View {
                              folder: folder)
         item.isJournal = true
         item.journalDate = entryDate
-        item.imageData = headerImage + locationImages
         item.locationLatitude = taggedLat
         item.locationLongitude = taggedLon
         modelContext.insert(item)
+        item.appendPhotos(headerImage + locationImages, in: modelContext)
         dismiss()
     }
 }

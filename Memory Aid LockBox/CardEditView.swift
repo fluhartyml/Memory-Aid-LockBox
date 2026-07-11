@@ -402,7 +402,7 @@ struct CardEditView: View {
         item.cardIssuer = issuer
         item.cardTypeRaw = type.rawValue
         item.cardBarcode = barcode
-        item.imageData = attachedImages
+        item.appendPhotos(attachedImages, in: modelContext)
         modelContext.insert(item)
         dismiss()
     }

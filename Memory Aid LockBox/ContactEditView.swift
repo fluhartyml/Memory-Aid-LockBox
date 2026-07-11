@@ -680,8 +680,8 @@ struct ContactEditView: View {
         item.contactHours = isBusiness ? hours : ""
         item.contactRelationship = isBusiness ? "" : relationship
         item.contactVCard = importedVCard
-        item.imageData = attachedImages
         modelContext.insert(item)
+        item.appendPhotos(attachedImages, in: modelContext)
     }
 
     /// Also save the self-serve selfie into the actual LockBox Photos folder —

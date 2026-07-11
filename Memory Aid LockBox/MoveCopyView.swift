@@ -29,6 +29,11 @@ extension VaultItem {
     /// field copied (used by Copy).
     func duplicated(into folder: Folder?) -> VaultItem {
         let copy = VaultItem(title: title, notes: notes, pin: pin, folder: folder)
+        // Photos: the copy REFERENCES the same master-library photos (one photo,
+        // both items — deleting in one just drops that item's reference). imageData
+        // is copied too so a not-yet-migrated legacy item still duplicates its blobs.
+        copy.assetIDsJSON = assetIDsJSON
+        copy.usesPhotoReferences = usesPhotoReferences
         copy.imageData = imageData
         copy.headerVerticalBias = headerVerticalBias
         copy.contactPhone = contactPhone
