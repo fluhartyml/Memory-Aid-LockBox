@@ -60,11 +60,20 @@ enum NotificationService {
         }
 
         let content = UNMutableNotificationContent()
-        let name = contactName.trimmingCharacters(in: .whitespaces).isEmpty ? "Contact" : contactName
-        let label = d.label.isEmpty ? "Significant date" : d.label
-        content.title = "\(label) — \(name)"
-        content.body = body(label: label, name: name, lead: lead)
         content.sound = .default
+        // Privacy: on a shared computer the banner can be seen by anyone at the
+        // screen, so content stays OUT of the enclave only by explicit permission.
+        // Default (setting off) = discreet: reveal nothing until the app is opened.
+        // Detailed = only the real data the user entered (label, name, date) — no
+        // computed filler like "is tomorrow" (Michael, 2026-07-11: no superfluous data).
+        if UserDefaults.standard.bool(forKey: "reminderShowsDetails") {
+            let name = contactName.trimmingCharacters(in: .whitespaces).isEmpty ? "Contact" : contactName
+            let label = d.label.trimmingCharacters(in: .whitespaces)
+            content.title = label.isEmpty ? name : "\(label) — \(name)"
+            content.body = d.date.formatted(date: .abbreviated, time: .shortened)
+        } else {
+            content.title = "LockBox reminder"
+        }
 
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
         do { try await center.add(request); return .scheduled }
@@ -74,20 +83,5 @@ enum NotificationService {
     /// Cancel a significant date's pending notification (on delete).
     static func cancel(id: UUID) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id.uuidString])
-    }
-
-    private static func body(label: String, name: String, lead: Int) -> String {
-        let when: String
-        switch lead {
-        case 0:      when = "is now"
-        case 60:     when = "is in 1 hour"
-        case 1_440:  when = "is tomorrow"
-        case 10_080: when = "is in 1 week"
-        default:
-            if lead % 1_440 == 0 { when = "is in \(lead / 1_440) days" }
-            else if lead % 60 == 0 { when = "is in \(lead / 60) hours" }
-            else { when = "is in \(lead) minutes" }
-        }
-        return "\(label) for \(name) \(when)."
     }
 }

@@ -11,6 +11,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("autoLockMinutes") private var autoLockMinutes = 5
+    // Off by default = discreet reminders: a notification banner reveals no vault
+    // content unless the user explicitly permits it (shared-computer privacy —
+    // nothing escapes the enclave onto a shared screen without an explicit choice).
+    @AppStorage("reminderShowsDetails") private var reminderShowsDetails = false
     @Environment(VaultLock.self) private var vaultLock
     @Environment(\.dismiss) private var dismiss
 
@@ -48,6 +52,14 @@ struct SettingsView: View {
                     Text("Contacts")
                 } footer: {
                     Text("Customize the one-tap buttons (Called, Texted, Emailed, Met…) in a contact's Interactions log — add your own, change icons, or reorder.")
+                }
+
+                Section {
+                    Toggle("Show details in reminders", isOn: $reminderShowsDetails)
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("Off (recommended on a shared computer): a significant-date reminder shows only \"LockBox reminder\" on the screen — open the app to see what it's for. On: the reminder shows the name and date on the notification, which anyone using this computer could see.")
                 }
             }
             // Apply the new timeout to any countdown already running, so lowering
