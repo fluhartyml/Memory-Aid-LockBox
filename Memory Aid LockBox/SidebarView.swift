@@ -45,10 +45,16 @@ struct SidebarView: View {
         #endif
     }
 
-    /// Item + media count for a folder. Pulled out of the row's string
-    /// interpolation so the type-checker doesn't time out on the optional math.
+    /// How many ENTRIES a folder holds — not attachments. Photos now live in the
+    /// master library, so a record folder counts its records, a Photo Journal counts
+    /// the photos it references, and the master Photos folder counts the photos it
+    /// owns (Michael, 2026-07-11). Pulled out so the type-checker doesn't time out.
     private func folderCount(_ folder: Folder) -> Int {
-        (folder.items?.count ?? 0) + (folder.mediaAssets?.count ?? 0)
+        switch folder.template {
+        case .photos:       return folder.mediaAssets?.count ?? 0   // the master library itself
+        case .photoJournal: return folder.journalAssetIDs.count     // referenced entries
+        default:            return folder.items?.count ?? 0         // records (attachments are in the master)
+        }
     }
 
     private var folderList: some View {

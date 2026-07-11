@@ -51,9 +51,13 @@ struct PhotoJournalView: View {
         content
             .resizingNavigationTitle(folder.name)
             .toolbar { toolbarContent }
+            // `photoLibrary: .shared()` is REQUIRED for itemIdentifier to come
+            // back — without it the picker gives no identifiers and the "move"
+            // (delete the originals from Apple Photos) can't happen.
             .photosPicker(isPresented: $showPicker,
                           selection: $pickerItems,
-                          matching: .any(of: [.images, .videos]))
+                          matching: .any(of: [.images, .videos]),
+                          photoLibrary: .shared())
             .onChange(of: pickerItems) { _, items in
                 guard !items.isEmpty else { return }
                 Task { await runImport(items) }
@@ -91,7 +95,7 @@ struct PhotoJournalView: View {
                     Label("Take Picture", systemImage: "camera")
                 }
                 #endif
-                Button { showPicker = true } label: {
+                Button { importTapped() } label: {
                     Label("Import from Camera Roll", systemImage: "photo.on.rectangle")
                 }
                 Button { showMasterPicker = true } label: {
@@ -173,8 +177,24 @@ struct PhotoJournalView: View {
 
     // MARK: - Add flows (photos are owned by master, referenced here)
 
-    /// Import from the camera roll into the master folder, then reference the new
-    /// photos in this journal (copy — Apple Photos originals are left in place).
+    /// Gate the camera-roll import behind full Photos access so the picker returns
+    /// identifiers and the "move" can delete originals (mirrors the master library).
+    private func importTapped() {
+        Task {
+            let status = await PhotoLibraryService.requestFullAccess()
+            if PhotoLibraryService.isAuthorized(status) {
+                showPicker = true
+            } else {
+                statusMessage = "Photos access is needed to import and move photos into the vault. Enable it in Settings → Memory Aid LockBox → Photos."
+                showStatus = true
+            }
+        }
+    }
+
+    /// Import from the camera roll into the master folder, reference the new photos
+    /// in this journal, then OFFER to move — iOS shows its own "Delete items?"
+    /// confirmation for removing the originals from Apple Photos. Verify-before-
+    /// delete already saved the vault copies, so a cancel just leaves them as copies.
     private func runImport(_ items: [PhotosPickerItem]) async {
         guard let master else { pickerItems = []; return }
         isImporting = true
@@ -186,10 +206,26 @@ struct PhotoJournalView: View {
             folder.journalAssetIDs = refs
             try? modelContext.save()
         }
+
+        var moved = false
+        if !summary.identifiersToRemove.isEmpty {
+            moved = await PhotoLibraryService.deleteFromPhotos(identifiers: summary.identifiersToRemove)
+        }
+
         pickerItems = []
         isImporting = false
+
+        var parts: [String] = []
+        if summary.imported > 0, !summary.identifiersToRemove.isEmpty {
+            parts.append(moved
+                ? "Originals were removed from Apple Photos."
+                : "Originals are still in Apple Photos — they're copies for now.")
+        }
         if summary.failures > 0 {
-            statusMessage = "\(summary.failures) item\(summary.failures == 1 ? "" : "s") couldn't be read and were skipped."
+            parts.append("\(summary.failures) item\(summary.failures == 1 ? "" : "s") couldn't be read and were skipped.")
+        }
+        if !parts.isEmpty {
+            statusMessage = parts.joined(separator: "\n\n")
             showStatus = true
         }
     }
