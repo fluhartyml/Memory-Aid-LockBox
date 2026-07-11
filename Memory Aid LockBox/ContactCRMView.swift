@@ -225,23 +225,32 @@ struct ContactCRMView: View {
             if item.significantDates.isEmpty {
                 Text("No dates yet.").font(.system(size: 16)).foregroundStyle(.secondary)
             } else {
+                Text("Long-press an entry to delete it")
+                    .font(.system(size: 15)).foregroundStyle(.tertiary)
                 ForEach(item.significantDates) { d in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(d.label.isEmpty ? "Date" : d.label).font(.system(size: 17, weight: .semibold))
-                            Text(d.date, format: .dateTime.month(.abbreviated).day().year())
+                            Text(d.date, format: .dateTime.month(.abbreviated).day().year().hour().minute())
                                 .font(.system(size: 16)).foregroundStyle(.secondary)
                             + Text(d.recurring ? " · yearly" : "").font(.system(size: 16)).foregroundStyle(.secondary)
+                            if !d.note.isEmpty {
+                                Text(d.note).font(.system(size: 16))
+                            }
                         }
                         Spacer()
                         Button { Task { await addDateToCalendar(d) } } label: {
                             Image(systemName: "calendar.badge.plus").font(.system(size: 19))
                         }
                         .buttonStyle(.plain)
+                    }
+                    // Long-press (right-click on Mac) to delete — no trashcan, no
+                    // confirmation (Michael, 2026-07-11; matches the quick-tag delete).
+                    .contentShape(Rectangle())
+                    .contextMenu {
                         Button(role: .destructive) {
                             item.significantDates.removeAll { $0.id == d.id }
-                        } label: { Image(systemName: "trash").font(.system(size: 16)) }
-                        .buttonStyle(.plain)
+                        } label: { Label("Delete", systemImage: "trash") }
                     }
                 }
             }
@@ -367,16 +376,17 @@ private struct AddSignificantDateSheet: View {
         NavigationStack {
             Form {
                 TextField("Label (Birthday, Anniversary…)", text: $value.label)
-                DatePicker("Date", selection: $value.date, displayedComponents: .date)
+                DatePicker("Date & time", selection: $value.date,
+                           displayedComponents: [.date, .hourAndMinute])
                 Toggle("Repeats yearly", isOn: $value.recurring)
+                Section("Notes") {
+                    TextEditor(text: $value.note).frame(minHeight: 80)
+                }
             }
             #if os(macOS)
-            .formStyle(.grouped).frame(minWidth: 420, minHeight: 300)
+            .formStyle(.grouped).frame(minWidth: 420, minHeight: 380)
             #endif
-            .navigationTitle("Significant Date")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .resizingNavigationTitle("Significant Date")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

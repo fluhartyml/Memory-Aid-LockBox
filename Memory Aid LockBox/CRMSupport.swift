@@ -32,8 +32,24 @@ struct Interaction: Codable, Identifiable, Hashable {
 struct SignificantDate: Codable, Identifiable, Hashable {
     var id = UUID()
     var label: String = ""      // Birthday · Anniversary · Met on · custom
-    var date = Date()
+    var date = Date()           // carries time as well as day (Michael, 2026-07-11)
     var recurring: Bool = true  // birthdays/anniversaries repeat yearly
+    var note: String = ""       // optional description (added 2026-07-11)
+
+    init() {}
+
+    // Custom decode so dates saved before `note` existed still load: synthesized
+    // Codable throws `keyNotFound` on a missing key even when the property has a
+    // default, which would drop every pre-existing entry. decodeIfPresent tolerates it.
+    enum CodingKeys: String, CodingKey { case id, label, date, recurring, note }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id        = try c.decodeIfPresent(UUID.self,   forKey: .id) ?? UUID()
+        label     = try c.decodeIfPresent(String.self, forKey: .label) ?? ""
+        date      = try c.decodeIfPresent(Date.self,   forKey: .date) ?? Date()
+        recurring = try c.decodeIfPresent(Bool.self,   forKey: .recurring) ?? true
+        note      = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+    }
 }
 
 extension VaultItem {
