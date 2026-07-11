@@ -111,9 +111,9 @@ struct MediaLibraryView: View {
                 Text("Name this photo journal. The selected photo\(pendingJournalIDs.count == 1 ? "" : "s") will be added to it.")
             }
             #if os(iOS)
-            .fullScreenCover(item: $viewerAsset) { MediaViewerView(asset: $0) }
+            .fullScreenCover(item: $viewerAsset) { MediaPagerView(assets: assets, current: $0) }
             #else
-            .sheet(item: $viewerAsset) { MediaViewerView(asset: $0).frame(minWidth: 600, minHeight: 600) }
+            .sheet(item: $viewerAsset) { MediaPagerView(assets: assets, current: $0).frame(minWidth: 600, minHeight: 600) }
             #endif
     }
 

@@ -13,7 +13,6 @@ import UIKit
 
 struct MediaViewerView: View {
     @Bindable var asset: MediaAsset
-    @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var hSize
     #endif
@@ -29,40 +28,34 @@ struct MediaViewerView: View {
         #endif
     }
 
+    // Page content for one asset. The enclosing MediaPagerView supplies the
+    // NavigationStack, the Done button, and (on iOS) the swipe-between-photos paging.
     var body: some View {
-        NavigationStack {
-            Group {
-                if isWide {
-                    HStack(spacing: 0) {
-                        // Left: photo, then Title/Caption/Body beneath it. The photo
-                        // keeps the bulk of the height; the text block is bounded and
-                        // scrolls when the body is long.
-                        VStack(spacing: 0) {
-                            mediaArea
-                            Divider()
-                            prominentTitleNotes
-                                .frame(maxHeight: 360)
-                        }
-                        Divider()
-                        // Right: capture date + read-only image/EXIF metadata.
-                        MediaDetailsForm(asset: asset, mode: .metadataOnly)
-                            .frame(width: 360)
-                    }
-                } else {
-                    // Narrow: photo on top, everything inline below.
+        Group {
+            if isWide {
+                HStack(spacing: 0) {
+                    // Left: photo, then Title/Caption/Body beneath it. The photo
+                    // keeps the bulk of the height; the text block is bounded and
+                    // scrolls when the body is long.
                     VStack(spacing: 0) {
                         mediaArea
-                            .frame(maxHeight: .infinity)
                         Divider()
-                        MediaDetailsForm(asset: asset, mode: .all)
-                            .frame(maxHeight: .infinity)
+                        prominentTitleNotes
+                            .frame(maxHeight: 360)
                     }
+                    Divider()
+                    // Right: capture date + read-only image/EXIF metadata.
+                    MediaDetailsForm(asset: asset, mode: .metadataOnly)
+                        .frame(width: 360)
                 }
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                        .font(.system(size: 18))
+            } else {
+                // Narrow: photo on top, everything inline below.
+                VStack(spacing: 0) {
+                    mediaArea
+                        .frame(maxHeight: .infinity)
+                    Divider()
+                    MediaDetailsForm(asset: asset, mode: .all)
+                        .frame(maxHeight: .infinity)
                 }
             }
         }
@@ -116,6 +109,71 @@ struct MediaViewerView: View {
                 .foregroundStyle(.white)
         }
     }
+}
+
+// MARK: - Pager (swipe between photos)
+
+/// Full-screen viewer that pages through a collection — swipe left/right on iOS,
+/// prev/next arrows on macOS — starting at the tapped asset. Wraps MediaViewerView
+/// pages in one NavigationStack + Done (Michael, 2026-07-11).
+struct MediaPagerView: View {
+    let assets: [MediaAsset]
+    @State private var selection: UUID
+    @Environment(\.dismiss) private var dismiss
+
+    init(assets: [MediaAsset], current: MediaAsset) {
+        self.assets = assets
+        _selection = State(initialValue: current.id)
+    }
+
+    var body: some View {
+        NavigationStack {
+            pages
+                .toolbar {
+                    #if os(macOS)
+                    ToolbarItemGroup(placement: .navigation) {
+                        Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                            .disabled(!canStep(-1))
+                        Button { step(1) } label: { Image(systemName: "chevron.right") }
+                            .disabled(!canStep(1))
+                    }
+                    #endif
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }.font(.system(size: 18))
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var pages: some View {
+        #if os(iOS)
+        TabView(selection: $selection) {
+            ForEach(assets) { asset in
+                MediaViewerView(asset: asset).tag(asset.id)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        #else
+        if let asset = assets.first(where: { $0.id == selection }) {
+            MediaViewerView(asset: asset)
+        } else {
+            ContentUnavailableView("Media Unavailable", systemImage: "exclamationmark.triangle")
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    private var currentIndex: Int? { assets.firstIndex { $0.id == selection } }
+    private func canStep(_ d: Int) -> Bool {
+        guard let i = currentIndex else { return false }
+        return assets.indices.contains(i + d)
+    }
+    private func step(_ d: Int) {
+        guard let i = currentIndex, assets.indices.contains(i + d) else { return }
+        selection = assets[i + d].id
+    }
+    #endif
 }
 
 // MARK: - Video

@@ -77,12 +77,12 @@ struct PhotoJournalView: View {
                 Text(statusMessage ?? "")
             }
             #if os(iOS)
-            .fullScreenCover(item: $viewerAsset) { MediaViewerView(asset: $0) }
+            .fullScreenCover(item: $viewerAsset) { MediaPagerView(assets: assets, current: $0) }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView { data in addCapturedPhoto(data) }
             }
             #else
-            .sheet(item: $viewerAsset) { MediaViewerView(asset: $0).frame(minWidth: 600, minHeight: 600) }
+            .sheet(item: $viewerAsset) { MediaPagerView(assets: assets, current: $0).frame(minWidth: 600, minHeight: 600) }
             #endif
     }
 
