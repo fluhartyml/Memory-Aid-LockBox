@@ -31,6 +31,9 @@ struct MediaLibraryView: View {
     @State private var viewerAsset: MediaAsset?
     @State private var showDeleteConfirm = false
 
+    @State private var isDeduping = false
+    @State private var showDedupeConfirm = false
+
     // After a successful export, ask whether to keep the vault copies or move
     // them out (delete from the vault). Only the verified-exported assets.
     @State private var exportedPendingRemoval: [MediaAsset] = []
@@ -74,7 +77,7 @@ struct MediaLibraryView: View {
                 guard !items.isEmpty else { return }
                 Task { await runImport(items) }
             }
-            .overlay { if isImporting || isExporting { busyOverlay } }
+            .overlay { if isImporting || isExporting || isDeduping { busyOverlay } }
             .confirmationDialog("Remove \(selection.count) item\(selection.count == 1 ? "" : "s") from the vault?",
                                 isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("Remove from Vault", role: .destructive) { deleteSelected() }
@@ -97,6 +100,13 @@ struct MediaLibraryView: View {
                 }
             } message: {
                 Text(exportMovePromptMessage)
+            }
+            .confirmationDialog("Remove duplicate photos?",
+                                isPresented: $showDedupeConfirm, titleVisibility: .visible) {
+                Button("Remove Duplicates", role: .destructive) { runDedupe() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Finds any photo stored more than once, keeps a single copy of each, and repoints every record and album to it. Nothing you see disappears — only the redundant copies are freed.")
             }
             .alert("Memory Aid LockBox", isPresented: $showStatus) {
                 Button("OK", role: .cancel) {}
@@ -254,6 +264,16 @@ struct MediaLibraryView: View {
                 }
                 Button("Select") { isSelecting = true }
                     .disabled(assets.isEmpty)
+                Menu {
+                    Button {
+                        showDedupeConfirm = true
+                    } label: {
+                        Label("Remove Duplicate Photos", systemImage: "square.on.square.dashed")
+                    }
+                    .disabled(assets.count < 2)
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                }
             }
         }
     }
@@ -335,6 +355,25 @@ struct MediaLibraryView: View {
         endSelecting()
     }
 
+    /// Merge byte-identical copies, keeping one of each. The `Task.yield()` lets
+    /// the busy overlay paint before the (synchronous, main-actor) pass runs.
+    private func runDedupe() {
+        isDeduping = true
+        Task { @MainActor in
+            await Task.yield()
+            let result = PhotoDeduplicator.run(in: modelContext)
+            isDeduping = false
+            if result.removed == 0 {
+                statusMessage = "No duplicate photos found — your library is already tidy."
+            } else {
+                let sets = "\(result.duplicateGroups) set\(result.duplicateGroups == 1 ? "" : "s")"
+                let copies = result.removed == 1 ? "1 redundant copy" : "\(result.removed) redundant copies"
+                statusMessage = "Merged \(sets) of duplicates and freed \(copies). Every record and album now points to the copy that was kept."
+            }
+            showStatus = true
+        }
+    }
+
     private func endSelecting() {
         selection.removeAll()
         isSelecting = false
@@ -386,7 +425,7 @@ struct MediaLibraryView: View {
     private var busyOverlay: some View {
         ZStack {
             Color.black.opacity(0.3).ignoresSafeArea()
-            ProgressView(isImporting ? "Importing…" : "Exporting…")
+            ProgressView(isImporting ? "Importing…" : isExporting ? "Exporting…" : "Removing duplicates…")
                 .padding(24)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         }
